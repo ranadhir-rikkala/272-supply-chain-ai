@@ -281,7 +281,7 @@ def _load_one(
         )
         for row in bad:
             db.execute(
-                "INSERT INTO ops.quarantine_row (file_key,line_number,raw_row,reason_code,etl_run_id) VALUES (%s,%s,%s,%s,%s)",
+                "INSERT INTO ops.quarantine_row (file_key,line_number,raw_row,reason_code,etl_run_id) VALUES (%s,%s,%s::jsonb,%s,%s)",
                 (key, row["line_number"], json.dumps(row["raw"]), row["reason_code"], run_id),
             )
         if good:
