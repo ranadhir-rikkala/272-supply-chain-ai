@@ -332,7 +332,7 @@ function Jobs() {
                 return (
                   <tr key={`${j.kind}-${j.id}`}>
                     <td>
-                      <div className="cell-title">{fmt.status(j.kind)}</div>
+                      <div className="cell-title">{j.kind === "ETL" ? "ETL load" : fmt.status(j.kind)}</div>
                       <div className="cell-sub mono">{j.id.length > 24 ? `${j.id.slice(0, 8)}…` : j.id}</div>
                     </td>
                     <td><span className={`chip ${tone}`}>{fmt.status(j.status)}</span></td>

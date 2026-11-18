@@ -1,12 +1,9 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { configureClient } from "../api/client";
 import { api } from "../api/endpoints";
-import { resetMockState } from "./handlers";
-import { server } from "./server";
+import { setupMockApi } from "../test/msw";
 
-beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
-afterEach(() => resetMockState());
-afterAll(() => server.close());
+setupMockApi();
 
 function as(username: string) {
   configureClient(() => `mock:${username}`, () => undefined);
