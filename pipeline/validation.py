@@ -4,8 +4,8 @@ from datetime import date
 
 SPECS = {
     "sales": (
-        ["feed_date", "sale_id", "sku", "warehouse_id", "units_sold", "unit_price"],
-        {"units_sold": int, "unit_price": float},
+        ["feed_date", "sale_id", "sku", "warehouse_id", "units_sold", "unit_price", "promotion"],
+        {"units_sold": int, "unit_price": float, "promotion": int},
     ),
     "inventory": (
         ["feed_date", "inventory_id", "sku", "warehouse_id", "on_hand", "reorder_point"],
