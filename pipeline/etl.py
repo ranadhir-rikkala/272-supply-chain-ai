@@ -70,11 +70,23 @@ def load_master(root: str, database_url: str | None = None) -> dict:
             "INSERT INTO ops.etl_run (etl_run_id, source) VALUES (%s, %s)", (run_id, str(root))
         )
         for filename, table, columns in [
-            ("products.csv", "core.dim_product", ["sku", "category", "product_name", "unit_price"]),
+            (
+                "products.csv",
+                "core.dim_product",
+                [
+                    "sku",
+                    "category",
+                    "product_name",
+                    "supplier_id",
+                    "case_pack",
+                    "unit_cost",
+                    "unit_price",
+                ],
+            ),
             (
                 "suppliers.csv",
                 "core.dim_supplier",
-                ["supplier_id", "supplier_name", "region", "lead_time_min", "lead_time_max"],
+                ["supplier_id", "supplier_name", "region", "lead_time_mean", "lead_time_sd"],
             ),
             (
                 "warehouses.csv",
@@ -118,7 +130,7 @@ def load_master(root: str, database_url: str | None = None) -> dict:
                 kind = feed_type(key)
                 if kind == "sales":
                     db.executemany(
-                        "INSERT INTO core.fact_sales (feed_date,sale_id,sku,warehouse_id,units_sold,unit_price,etl_run_id) VALUES (%s,%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
+                        "INSERT INTO core.fact_sales_daily (feed_date,sale_id,sku,warehouse_id,units_sold,unit_price,etl_run_id) VALUES (%s,%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
                         [
                             (
                                 r["feed_date"],
@@ -134,7 +146,7 @@ def load_master(root: str, database_url: str | None = None) -> dict:
                     )
                 elif kind == "inventory":
                     db.executemany(
-                        "INSERT INTO core.fact_inventory (feed_date,inventory_id,sku,warehouse_id,on_hand,reorder_point,etl_run_id) VALUES (%s,%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
+                        "INSERT INTO core.fact_inventory_daily (feed_date,inventory_id,sku,warehouse_id,on_hand,on_order,reorder_point,stockout_flag,etl_run_id) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
                         [
                             (
                                 r["feed_date"],
@@ -142,7 +154,9 @@ def load_master(root: str, database_url: str | None = None) -> dict:
                                 r["sku"],
                                 r["warehouse_id"],
                                 int(r["on_hand"]),
+                                int(r["on_order"]),
                                 int(r["reorder_point"]),
+                                r["stockout_flag"] == "1",
                                 run_id,
                             )
                             for r in good
