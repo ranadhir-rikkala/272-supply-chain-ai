@@ -19,6 +19,11 @@ class LocalStore:
     def exists(self, key: str) -> bool:
         return (self.root / key).exists()
 
+    def delete(self, key: str) -> None:
+        path = self.root / key
+        if path.exists():
+            path.unlink()
+
 
 class S3Store:
     def __init__(self, bucket: str, prefix: str = ""):
@@ -45,11 +50,17 @@ class S3Store:
         except self.client.exceptions.ClientError:
             return False
 
+    def delete(self, key: str) -> None:
+        self.client.delete_object(Bucket=self.bucket, Key=self._key(key))
+
 
 def make_store(root: str | Path):
-    if os.getenv("STORE", "local").lower() == "s3":
+    backend = os.getenv("STORE", "local").lower()
+    if backend == "s3":
         bucket = os.environ["S3_BUCKET"]
         return S3Store(bucket, os.getenv("S3_PREFIX", ""))
+    if backend != "local":
+        raise ValueError(f"Unsupported STORE backend: {backend}")
     return LocalStore(root)
 
 
