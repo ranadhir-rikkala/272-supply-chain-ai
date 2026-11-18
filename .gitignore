@@ -10,3 +10,7 @@ node_modules/
 .DS_Store
 .idea/
 *.iml
+dashboard/dist/
+dashboard/playwright-report/
+dashboard/test-results/
+dashboard/node_modules/
