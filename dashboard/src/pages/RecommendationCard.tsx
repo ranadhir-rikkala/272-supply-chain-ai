@@ -34,6 +34,7 @@ export function RecommendationCard({ rec, plannerLimit }: { rec: Recommendation;
   const toast = useToast();
   const client = useQueryClient();
   const [comment, setComment] = useState("");
+  const [quantity, setQuantity] = useState(String(rec.quantity));
   const [error, setError] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const open = rec.status === "PENDING_REVIEW" || rec.status === "PENDING_MANAGER";
@@ -54,7 +55,11 @@ export function RecommendationCard({ rec, plannerLimit }: { rec: Recommendation;
     if (e instanceof ApiError && (e.status === 409 || e.status === 412)) refresh();
   };
   const approve = useMutation({
-    mutationFn: () => api.approve(rec.recommendationId, rec.version, { comment: comment.trim() || undefined }),
+    mutationFn: () =>
+      api.approve(rec.recommendationId, rec.version, {
+        comment: comment.trim() || undefined,
+        quantity: manager && override !== rec.quantity ? override : undefined,
+      }),
     onSuccess: ({ data }) => {
       setError(null);
       toast.show(
@@ -76,13 +81,16 @@ export function RecommendationCard({ rec, plannerLimit }: { rec: Recommendation;
     onError,
   });
   const busy = approve.isPending || reject.isPending;
+  const override = Math.round(Number(quantity));
+  const overrideValid = Number.isFinite(override) && override > 0;
+  const changed = manager && overrideValid && override !== rec.quantity;
 
   let blocker: string | null = null;
   if (!planner && !manager) blocker = "Only planners and supply managers can decide.";
   else if (rec.status === "PENDING_MANAGER" && !manager) blocker = `Endorsed by ${rec.endorsedBy}. Waiting for a supply manager.`;
   else if (manager && rec.endorsedBy === me) blocker = "You endorsed this order, so someone else must give final approval.";
 
-  const approveLabel = !manager && aboveLimit ? "Endorse for manager" : "Approve";
+  const approveLabel = !manager && aboveLimit ? "Endorse for manager" : changed ? `Approve ${fmt.int(override)}` : "Approve";
   const title =
     rec.kind === "TRANSFER"
       ? `Move ${fmt.int(rec.quantity)} from ${rec.sourceWarehouseId} to ${rec.warehouseId}`
@@ -146,8 +154,23 @@ export function RecommendationCard({ rec, plannerLimit }: { rec: Recommendation;
                   onChange={(event) => setComment(event.target.value)}
                 />
               </label>
+              {manager && (
+                <label className="field" style={{ width: 150 }}>
+                  <span>Quantity</span>
+                  <input
+                    id={`quantity-${rec.recommendationId}`}
+                    className="input num"
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={quantity}
+                    aria-describedby={`quantity-note-${rec.recommendationId}`}
+                    onChange={(event) => setQuantity(event.target.value)}
+                  />
+                </label>
+              )}
               <div className="btn-row">
-                <button type="button" className="btn primary" disabled={busy} onClick={() => approve.mutate()}>
+                <button type="button" className="btn primary" disabled={busy || (manager && !overrideValid)} onClick={() => approve.mutate()}>
                   {approve.isPending ? "Saving…" : approveLabel}
                 </button>
                 <button
@@ -161,6 +184,13 @@ export function RecommendationCard({ rec, plannerLimit }: { rec: Recommendation;
                 </button>
               </div>
             </div>
+          )}
+          {manager && !blocker && (
+            <p id={`quantity-note-${rec.recommendationId}`} className="muted" style={{ fontSize: 13 }}>
+              {changed
+                ? `Override: ${fmt.int(rec.quantity)} → ${fmt.int(override)} units, new value ${fmt.money(override * rec.unitCost)}. The change is recorded in the audit log.`
+                : "As a supply manager you can change the quantity before approving."}
+            </p>
           )}
           {error && (
             <div className="notice error" role="alert">
