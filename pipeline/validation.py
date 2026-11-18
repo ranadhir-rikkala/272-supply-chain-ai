@@ -2,14 +2,30 @@ from __future__ import annotations
 
 from datetime import date
 
+
+def _boolean(value: str) -> bool:
+    if value not in {"True", "False", "0", "1"}:
+        raise ValueError(value)
+    return value in {"True", "1"}
+
+
 SPECS = {
     "sales": (
         ["feed_date", "sale_id", "sku", "warehouse_id", "units_sold", "unit_price", "promotion"],
         {"units_sold": int, "unit_price": float, "promotion": int},
     ),
     "inventory": (
-        ["feed_date", "inventory_id", "sku", "warehouse_id", "on_hand", "reorder_point"],
-        {"on_hand": int, "reorder_point": int},
+        [
+            "feed_date",
+            "inventory_id",
+            "sku",
+            "warehouse_id",
+            "on_hand",
+            "on_order",
+            "reorder_point",
+            "stockout_flag",
+        ],
+        {"on_hand": int, "on_order": int, "reorder_point": int, "stockout_flag": _boolean},
     ),
     "po_events": (
         [
