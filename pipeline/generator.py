@@ -10,7 +10,7 @@ import random
 from datetime import date, timedelta
 from pathlib import Path
 
-from .storage import LocalStore, make_store
+from .storage import make_store
 
 SEED = 272
 CATEGORIES = ["BEV", "SNK", "DAI", "FRZ", "PCR", "HHC", "PAP", "ELE", "PHA", "OUT", "WIN", "SCH"]
@@ -179,13 +179,10 @@ def _plant_row_defects(rows: list[dict], kind: str, file_key: str, planted: list
 def generate(root: str | Path, start: date, end: date, seed: int = SEED) -> dict:
     rng = random.Random(seed)
     store = make_store(root)
-    out = Path(root)
     products, suppliers, warehouses = catalog(rng)
-    if isinstance(store, LocalStore):
-        out.mkdir(parents=True, exist_ok=True)
-        store.put("catalog/products.csv", _csv_bytes(products, list(products[0]), False))
-        store.put("catalog/suppliers.csv", _csv_bytes(suppliers, list(suppliers[0]), False))
-        store.put("catalog/warehouses.csv", _csv_bytes(warehouses, list(warehouses[0]), False))
+    store.put("catalog/products.csv", _csv_bytes(products, list(products[0]), False))
+    store.put("catalog/suppliers.csv", _csv_bytes(suppliers, list(suppliers[0]), False))
+    store.put("catalog/warehouses.csv", _csv_bytes(warehouses, list(warehouses[0]), False))
     disruptions = _disruptions(start, end)
     disruption_dates = {x["start_date"]: x for x in disruptions}
     planted, manifest = [], []
@@ -334,19 +331,19 @@ def generate(root: str | Path, start: date, end: date, seed: int = SEED) -> dict
         "raw/manifest.csv",
         _csv_bytes(manifest, ["file_key", "sha256", "row_count", "feed_date"], False),
     )
-    eval_dir = out / "eval/erp"
-    eval_dir.mkdir(parents=True, exist_ok=True)
-    (eval_dir / "planted_defects.csv.gz").write_bytes(
+    store.put(
+        "eval/erp/planted_defects.csv.gz",
         _csv_bytes(
             planted, ["defect_id", "file_key", "line_number", "defect_type", "expected_reason"]
-        )
+        ),
     )
-    (eval_dir / "disruptions.csv").write_bytes(
+    store.put(
+        "eval/erp/disruptions.csv",
         _csv_bytes(
             disruptions,
             ["disruption_id", "disruption_type", "start_date", "end_date", "description"],
             False,
-        )
+        ),
     )
     return {
         "files": len(manifest),
