@@ -1,6 +1,53 @@
 name: supply-chain-ai
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-supplychain}
+      POSTGRES_USER: ${POSTGRES_USER:-supplychain}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-supplychain}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  flyway:
+    image: flyway/flyway:10-alpine
+    command: -connectRetries=60 -outOfOrder=true migrate
+    environment:
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-supplychain}
+      FLYWAY_USER: ${POSTGRES_USER:-supplychain}
+      FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:-supplychain}
+      FLYWAY_LOCATIONS: filesystem:/flyway/sql
+    volumes:
+      - ./db/migrations:/flyway/sql:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-supplychain}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-supplychain}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
   caddy:
     build: ./dashboard
     image: supply-chain-ai/caddy:dev
@@ -15,5 +62,7 @@ services:
     restart: unless-stopped
 
 volumes:
+  postgres_data:
+  rabbitmq_data:
   caddy_data:
   caddy_config:

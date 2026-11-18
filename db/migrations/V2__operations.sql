@@ -1,0 +1,3 @@
+CREATE TABLE ops.etl_run (etl_run_id uuid PRIMARY KEY, started_at timestamptz NOT NULL DEFAULT now(), finished_at timestamptz, status text NOT NULL DEFAULT 'RUNNING', source text);
+CREATE TABLE ops.etl_file (file_key text NOT NULL, sha256 text NOT NULL, feed_date date, row_count bigint, good_count bigint, bad_count bigint, status text NOT NULL, etl_run_id uuid REFERENCES ops.etl_run, processed_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY (file_key, sha256));
+CREATE TABLE ops.quarantine_row (id bigserial PRIMARY KEY, file_key text NOT NULL, line_number bigint NOT NULL, raw_row jsonb NOT NULL, reason_code text NOT NULL, etl_run_id uuid REFERENCES ops.etl_run, created_at timestamptz NOT NULL DEFAULT now());
