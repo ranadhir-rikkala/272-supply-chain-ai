@@ -1,0 +1,19 @@
+name: supply-chain-ai
+
+services:
+  caddy:
+    build: ./dashboard
+    image: supply-chain-ai/caddy:dev
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-localhost}
+    ports:
+      - "${CADDY_BIND:-127.0.0.1}:80:80"
+      - "${CADDY_BIND:-127.0.0.1}:443:443"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:
