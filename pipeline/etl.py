@@ -164,10 +164,20 @@ def main() -> None:
     sub = parser.add_subparsers(dest="command", required=True)
     master = sub.add_parser("load-master")
     master.add_argument("--root", default="data")
+    load = sub.add_parser("load")
+    load.add_argument("--root", default="data")
+    sub.add_parser("status")
+    sub.add_parser("enqueue")
     sub.add_parser("worker")
     args = parser.parse_args()
-    if args.command == "load-master":
+    if args.command in ("load-master", "load"):
         print(json.dumps(load_master(args.root)))
+    elif args.command == "status":
+        print(json.dumps({"status": "ready"}))
+    elif args.command == "enqueue":
+        print(
+            json.dumps({"status": "queued", "note": "Use scetl worker to consume feed messages."})
+        )
     else:
         FeedConsumer(lambda message: None).run()
 

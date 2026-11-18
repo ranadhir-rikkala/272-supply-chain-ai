@@ -93,7 +93,27 @@ def generate(root: str | Path, start: date, end: date, seed: int = SEED) -> dict
         store.put("catalog/products.csv", _csv_bytes(products, list(products[0]), False))
         store.put("catalog/suppliers.csv", _csv_bytes(suppliers, list(suppliers[0]), False))
         store.put("catalog/warehouses.csv", _csv_bytes(warehouses, list(warehouses[0]), False))
-    planted, manifest = [], []
+    planted, manifest, disruptions = [], [], []
+    total_days = (end - start).days + 1
+    for i in range(40):
+        disruption_date = start + timedelta(days=(i * max(1, total_days - 1)) // 39)
+        kind = [
+            "SUPPLIER_DELAY",
+            "PORT_CLOSURE",
+            "HEAT_WAVE",
+            "COLD_SNAP",
+            "PANIC_BUYING",
+            "VIRAL_PRODUCT",
+        ][i % 6]
+        disruptions.append(
+            {
+                "disruption_id": f"DIS-{i + 1:03d}",
+                "disruption_type": kind,
+                "start_date": disruption_date.isoformat(),
+                "end_date": (disruption_date + timedelta(days=3)).isoformat(),
+                "description": f"Planted {kind.lower().replace('_', ' ')} event",
+            }
+        )
     day = start
     day_index = 0
     while day <= end:
@@ -183,7 +203,7 @@ def generate(root: str | Path, start: date, end: date, seed: int = SEED) -> dict
                     "expected_reason": "BAD_TYPE:on_hand",
                 }
             )
-        for name, rows, fields in [
+        file_rows = [
             ("sales", sales, list(sales[0])),
             ("inventory", inventory, list(inventory[0])),
             ("po_events", events, list(events[0])),
@@ -194,7 +214,24 @@ def generate(root: str | Path, start: date, end: date, seed: int = SEED) -> dict
                 if receipts
                 else ["receipt_id", "po_id", "receipt_date", "quantity", "warehouse_id"],
             ),
-        ]:
+        ]
+        if total_days > 2 and day_index in (total_days // 3, (2 * total_days) // 3):
+            inventory = [{**row, "onhand": row.pop("on_hand")} for row in inventory]
+            file_rows[1] = (
+                "inventory",
+                inventory,
+                ["feed_date", "inventory_id", "sku", "warehouse_id", "onhand", "reorder_point"],
+            )
+            planted.append(
+                {
+                    "defect_id": f"DEF-SCHEMA-{day_index:06d}",
+                    "file_key": f"raw/inventory/{datestr}.csv.gz",
+                    "line_number": 1,
+                    "defect_type": "renamed_column",
+                    "expected_reason": "FILE_SCHEMA_MISMATCH",
+                }
+            )
+        for name, rows, fields in file_rows:
             key = f"raw/{name}/{datestr}.csv.gz"
             data = _csv_bytes(rows, fields)
             store.put(key, data)
@@ -217,8 +254,12 @@ def generate(root: str | Path, start: date, end: date, seed: int = SEED) -> dict
             planted, ["defect_id", "file_key", "line_number", "defect_type", "expected_reason"]
         )
     )
-    (eval_dir / "disruptions.csv").write_text(
-        "disruption_id,disruption_type,start_date,end_date,description\n"
+    (eval_dir / "disruptions.csv").write_bytes(
+        _csv_bytes(
+            disruptions,
+            ["disruption_id", "disruption_type", "start_date", "end_date", "description"],
+            False,
+        )
     )
     return {
         "files": len(manifest),
