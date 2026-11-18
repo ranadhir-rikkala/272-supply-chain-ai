@@ -5,6 +5,7 @@ import { ApiError } from "./api/client";
 import { SessionProvider } from "./auth/SessionProvider";
 import { useSession } from "./auth/session";
 import { Loading } from "./components/States";
+import { ToastProvider } from "./components/Toast";
 import { SignIn } from "./pages/SignIn";
 import { AppRoutes } from "./routes";
 
@@ -32,9 +33,11 @@ export function App() {
   return (
     <QueryClientProvider client={client}>
       <SessionProvider>
-        <BrowserRouter>
-          <Gate />
-        </BrowserRouter>
+        <ToastProvider>
+          <BrowserRouter>
+            <Gate />
+          </BrowserRouter>
+        </ToastProvider>
       </SessionProvider>
     </QueryClientProvider>
   );
