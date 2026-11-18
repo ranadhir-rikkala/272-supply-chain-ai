@@ -10,7 +10,7 @@ venv:
 	$(PIP) install -e '.[dev]'
 
 up:
-	docker compose up -d postgres rabbitmq flyway
+	docker compose up -d postgres rabbitmq flyway && docker compose up -d --scale etl-worker=2 etl-worker
 
 down:
 	docker compose down

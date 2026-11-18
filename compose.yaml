@@ -48,6 +48,25 @@ services:
       timeout: 5s
       retries: 20
 
+  etl-worker:
+    build:
+      context: .
+      dockerfile: infra/etl/Dockerfile
+    command: ["scetl", "worker", "--root", "/data"]
+    environment:
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-supplychain}:${RABBITMQ_PASSWORD:-supplychain}@rabbitmq:5672/
+      METRICS_PORT: 9100
+      DATABASE_URL: postgresql://${POSTGRES_USER:-supplychain}:${POSTGRES_PASSWORD:-supplychain}@postgres:5432/${POSTGRES_DB:-supplychain}
+    volumes:
+      - ${DATA_ROOT:-./data}:/data
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      flyway:
+        condition: service_completed_successfully
+    deploy:
+      replicas: 2
+
   caddy:
     build: ./dashboard
     image: supply-chain-ai/caddy:dev
