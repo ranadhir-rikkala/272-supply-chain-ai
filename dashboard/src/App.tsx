@@ -6,6 +6,7 @@ import { SessionProvider } from "./auth/SessionProvider";
 import { useSession } from "./auth/session";
 import { Loading } from "./components/States";
 import { SignIn } from "./pages/SignIn";
+import { AppRoutes } from "./routes";
 
 function makeClient() {
   return new QueryClient({
@@ -23,16 +24,7 @@ function Gate() {
   const session = useSession();
   if (session.status === "loading") return <Loading label="Signing in" />;
   if (session.status !== "signedIn" || !session.me) return <SignIn />;
-  return (
-    <main className="signin">
-      <div className="signin-card">
-        <h1>Signed in as {session.me.displayName}</h1>
-        <button type="button" className="btn" onClick={session.signOut}>
-          Sign out
-        </button>
-      </div>
-    </main>
-  );
+  return <AppRoutes />;
 }
 
 export function App() {
