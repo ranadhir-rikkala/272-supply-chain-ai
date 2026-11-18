@@ -435,6 +435,33 @@ def load_eval(root: str, database_url: str | None = None) -> dict:
     return {"planted_defects": len(defects), "disruptions": len(disruptions)}
 
 
+def enqueue(root: str) -> dict:
+    import pika
+
+    root_path = Path(root)
+    with (root_path / "raw/manifest.csv").open(newline="") as handle:
+        manifest = list(csv.DictReader(handle))
+    connection = pika.BlockingConnection(
+        pika.URLParameters(
+            os.getenv("RABBITMQ_URL", "amqp://supplychain:supplychain@localhost:5672/")
+        )
+    )
+    channel = connection.channel()
+    channel.exchange_declare(exchange="erp", exchange_type="topic", durable=True)
+    count = 0
+    for item in manifest:
+        kind = feed_type(item["file_key"])
+        channel.basic_publish(
+            "erp",
+            f"feed.{kind}",
+            json.dumps({"file_key": item["file_key"], "feed_date": item["feed_date"]}).encode(),
+            pika.BasicProperties(delivery_mode=2),
+        )
+        count += 1
+    connection.close()
+    return {"status": "queued", "messages": count}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Validate, quarantine, and load ERP feeds")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -450,7 +477,8 @@ def main() -> None:
     enqueue_parser = sub.add_parser("enqueue")
     enqueue_parser.add_argument("--root", default="data")
     sub.add_parser("status")
-    sub.add_parser("worker")
+    worker_parser = sub.add_parser("worker")
+    worker_parser.add_argument("--root", default="data")
     args = parser.parse_args()
     if args.command in {"load-master", "load"}:
         print(
@@ -469,9 +497,11 @@ def main() -> None:
     elif args.command == "status":
         print(json.dumps({"status": "ready"}))
     elif args.command == "enqueue":
-        print(json.dumps({"status": "queued", "root": args.root}))
+        print(json.dumps(enqueue(args.root)))
     else:
-        FeedConsumer(lambda message: None).run()
+        FeedConsumer(
+            lambda message: load_master(args.root, date_filter=message.get("feed_date"))
+        ).run()
 
 
 if __name__ == "__main__":
