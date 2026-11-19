@@ -222,6 +222,16 @@ def _load_with_copy(db, kind: str, rows: list[dict], run_id: str) -> None:
 def _db_catalog(db, root: Path) -> None:
     for filename, table, columns in [
         (
+            "suppliers.csv",
+            "core.dim_supplier",
+            ["supplier_id", "supplier_name", "region", "lead_time_mean", "lead_time_sd"],
+        ),
+        (
+            "warehouses.csv",
+            "core.dim_warehouse",
+            ["warehouse_id", "warehouse_name", "city", "latitude", "longitude", "climate_scale"],
+        ),
+        (
             "products.csv",
             "core.dim_product",
             [
@@ -234,21 +244,11 @@ def _db_catalog(db, root: Path) -> None:
                 "unit_price",
             ],
         ),
-        (
-            "suppliers.csv",
-            "core.dim_supplier",
-            ["supplier_id", "supplier_name", "region", "lead_time_mean", "lead_time_sd"],
-        ),
-        (
-            "warehouses.csv",
-            "core.dim_warehouse",
-            ["warehouse_id", "warehouse_name", "city", "latitude", "longitude", "climate_scale"],
-        ),
     ]:
         with (root / "catalog" / filename).open(newline="") as handle:
             rows = list(csv.DictReader(handle))
         placeholders = ",".join(["%s"] * len(columns))
-        db.executemany(
+        db.cursor().executemany(
             f"INSERT INTO {table} ({','.join(columns)}) VALUES ({placeholders}) ON CONFLICT DO NOTHING",
             [tuple(row[column] for column in columns) for row in rows],
         )
@@ -403,7 +403,7 @@ def load_eval(root: str, database_url: str | None = None) -> dict:
         import psycopg
 
         with psycopg.connect(database_url or os.environ["DATABASE_URL"]) as db:
-            db.executemany(
+            db.cursor().executemany(
                 "INSERT INTO eval.planted_defect (defect_id,file_key,line_number,defect_type,expected_reason) VALUES (%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
                 [
                     (
@@ -416,7 +416,7 @@ def load_eval(root: str, database_url: str | None = None) -> dict:
                     for x in defects
                 ],
             )
-            db.executemany(
+            db.cursor().executemany(
                 "INSERT INTO eval.disruption_truth (disruption_id,disruption_type,start_date,end_date,description,supplier_id,sku,warehouse_id) VALUES (%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
                 [
                     (
