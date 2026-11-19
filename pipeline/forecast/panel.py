@@ -167,9 +167,9 @@ def load_panel(connection, start: date | None = None, end: date | None = None) -
         warehouses = _copy_frame(cursor, sql.SQL("SELECT warehouse_id FROM core.dim_warehouse"))
         promo_column = _promo_column(cursor)
         promo_select = (
-            sql.SQL("{}::boolean AS promo_flag").format(sql.Identifier(promo_column))
+            sql.SQL("{}::boolean::int AS promo_flag").format(sql.Identifier(promo_column))
             if promo_column
-            else sql.SQL("false AS promo_flag")
+            else sql.SQL("0 AS promo_flag")
         )
         sales = _copy_frame(
             cursor,
@@ -181,12 +181,8 @@ def load_panel(connection, start: date | None = None, end: date | None = None) -
         inventory = _copy_frame(
             cursor,
             sql.SQL(
-                "SELECT feed_date, sku, warehouse_id, on_hand, stockout_flag "
+                "SELECT feed_date, sku, warehouse_id, on_hand, stockout_flag::int AS stockout_flag "
                 "FROM core.fact_inventory_daily WHERE {}"
             ).format(_date_filter("feed_date", start, end)),
         )
-    if "stockout_flag" in inventory and inventory["stockout_flag"].dtype == object:
-        inventory["stockout_flag"] = inventory["stockout_flag"].map({"t": True, "f": False})
-    if "promo_flag" in sales and sales["promo_flag"].dtype == object:
-        sales["promo_flag"] = sales["promo_flag"].map({"t": True, "f": False})
     return build_panel(products, warehouses, sales, inventory, start, end)
