@@ -45,10 +45,8 @@ class FeedConsumer:
     """Reusable RabbitMQ consumer for ETL and Forecasting workers.
 
     The retry queue uses per-message expiration. RabbitMQ dead-letters expired
-    messages back to the main queue; retry delays are 1, 2, and 4 seconds. The
-    fourth failure is routed to the durable dead-letter queue. Retries and dead
-    letters are published straight to their queues so the topic binding of the
-    main queue never picks them up again.
+    messages back to ``etl.feed``; retry delays are 1, 2, and 4 seconds. The
+    fourth failure is routed to the durable dead-letter queue.
     """
 
     def __init__(
