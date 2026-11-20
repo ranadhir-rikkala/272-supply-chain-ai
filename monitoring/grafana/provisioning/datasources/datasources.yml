@@ -1,3 +1,4 @@
+# Datasources are provisioned from this file, so nobody configures Grafana by hand.
 apiVersion: 1
 
 datasources:
@@ -16,6 +17,7 @@ datasources:
     type: grafana-postgresql-datasource
     access: proxy
     url: postgres:5432
+    # Read-only role from V13; the password comes from the environment, not from git.
     user: grafana_reader
     editable: false
     jsonData:

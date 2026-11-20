@@ -1,3 +1,4 @@
+# Loads the dashboard JSON files from disk; UI edits are disabled so the files stay the source of truth.
 apiVersion: 1
 
 providers:
