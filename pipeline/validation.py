@@ -11,8 +11,8 @@ def _boolean(value: str) -> bool:
 
 SPECS = {
     "sales": (
-        ["feed_date", "sale_id", "sku", "warehouse_id", "units_sold", "unit_price", "promotion"],
-        {"units_sold": int, "unit_price": float, "promotion": int},
+        ["feed_date", "sale_id", "sku", "warehouse_id", "units_sold", "unit_price", "promo_flag"],
+        {"units_sold": int, "unit_price": float, "promo_flag": int},
     ),
     "inventory": (
         [

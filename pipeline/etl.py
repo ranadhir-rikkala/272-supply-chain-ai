@@ -120,6 +120,7 @@ def _load_with_copy(db, kind: str, rows: list[dict], run_id: str) -> None:
             "warehouse_id",
             "units_sold",
             "unit_price",
+            "promo_flag",
             "etl_run_id",
         ]
         values = [
@@ -130,12 +131,13 @@ def _load_with_copy(db, kind: str, rows: list[dict], run_id: str) -> None:
                 r["warehouse_id"],
                 int(r["units_sold"]),
                 r["unit_price"],
+                r["promo_flag"] in {"True", "1"},
                 run_id,
             )
             for r in rows
         ]
         target, temp = "core.fact_sales_daily", "tmp_sales_daily"
-        types = "feed_date date, sale_id text, sku text, warehouse_id text, units_sold int, unit_price numeric, etl_run_id uuid"
+        types = "feed_date date, sale_id text, sku text, warehouse_id text, units_sold int, unit_price numeric, promo_flag boolean, etl_run_id uuid"
     elif kind == "inventory":
         columns = [
             "feed_date",
@@ -222,6 +224,16 @@ def _load_with_copy(db, kind: str, rows: list[dict], run_id: str) -> None:
 def _db_catalog(db, root: Path) -> None:
     for filename, table, columns in [
         (
+            "suppliers.csv",
+            "core.dim_supplier",
+            ["supplier_id", "supplier_name", "region", "lead_time_mean", "lead_time_sd"],
+        ),
+        (
+            "warehouses.csv",
+            "core.dim_warehouse",
+            ["warehouse_id", "warehouse_name", "city", "latitude", "longitude", "climate_scale"],
+        ),
+        (
             "products.csv",
             "core.dim_product",
             [
@@ -234,24 +246,15 @@ def _db_catalog(db, root: Path) -> None:
                 "unit_price",
             ],
         ),
-        (
-            "suppliers.csv",
-            "core.dim_supplier",
-            ["supplier_id", "supplier_name", "region", "lead_time_mean", "lead_time_sd"],
-        ),
-        (
-            "warehouses.csv",
-            "core.dim_warehouse",
-            ["warehouse_id", "warehouse_name", "city", "latitude", "longitude", "climate_scale"],
-        ),
     ]:
         with (root / "catalog" / filename).open(newline="") as handle:
             rows = list(csv.DictReader(handle))
         placeholders = ",".join(["%s"] * len(columns))
-        db.executemany(
-            f"INSERT INTO {table} ({','.join(columns)}) VALUES ({placeholders}) ON CONFLICT DO NOTHING",
-            [tuple(row[column] for column in columns) for row in rows],
-        )
+        with db.cursor() as cursor:
+            cursor.executemany(
+                f"INSERT INTO {table} ({','.join(columns)}) VALUES ({placeholders}) ON CONFLICT DO NOTHING",
+                [tuple(row[column] for column in columns) for row in rows],
+            )
 
 
 def _load_one(
@@ -362,6 +365,10 @@ def load_master(
                 archive = root_path / "raw/archive" / key.removeprefix("raw/")
                 archive.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(path, archive)
+            if db:
+                # Keep each file atomic and durable. A later bad file must not
+                # roll back successfully loaded files from the same run.
+                db.commit()
             with processed_path.open("a") as handle:
                 handle.write(
                     json.dumps(
@@ -402,8 +409,11 @@ def load_eval(root: str, database_url: str | None = None) -> dict:
     if database_url or os.getenv("DATABASE_URL"):
         import psycopg
 
-        with psycopg.connect(database_url or os.environ["DATABASE_URL"]) as db:
-            db.executemany(
+        with (
+            psycopg.connect(database_url or os.environ["DATABASE_URL"]) as db,
+            db.cursor() as cursor,
+        ):
+            cursor.executemany(
                 "INSERT INTO eval.planted_defect (defect_id,file_key,line_number,defect_type,expected_reason) VALUES (%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
                 [
                     (
@@ -416,7 +426,7 @@ def load_eval(root: str, database_url: str | None = None) -> dict:
                     for x in defects
                 ],
             )
-            db.executemany(
+            cursor.executemany(
                 "INSERT INTO eval.disruption_truth (disruption_id,disruption_type,start_date,end_date,description,supplier_id,sku,warehouse_id) VALUES (%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
                 [
                     (

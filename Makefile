@@ -2,8 +2,8 @@
 PYTHON ?= python3.12
 VENV ?= .venv
 PIP = $(VENV)/bin/pip
-SCGEN = $(VENV)/bin/scgen
-SCETL = $(VENV)/bin/scetl
+SCGEN = $(VENV)/bin/python -m pipeline.generator
+SCETL = $(VENV)/bin/python -m pipeline.etl
 
 venv:
 	$(PYTHON) -m venv $(VENV)

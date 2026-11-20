@@ -243,7 +243,7 @@ def generate(root: str | Path, start: date, end: date, seed: int = SEED) -> dict
                         "warehouse_id": warehouse["warehouse_id"],
                         "units_sold": demand,
                         "unit_price": product["unit_price"],
-                        "promotion": int(promo),
+                        "promo_flag": int(promo),
                     }
                 )
                 inventory.append(
