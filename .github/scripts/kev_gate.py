@@ -1,3 +1,5 @@
+"""Fail CI when a Python dependency has a vulnerability on the CISA Known Exploited Vulnerabilities list."""
+
 import json
 import sys
 import urllib.request
@@ -6,12 +8,14 @@ KEV_FEED = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulne
 
 
 def known_exploited(feed_url: str = KEV_FEED) -> set[str]:
+    """CVE ids from the CISA KEV catalog."""
     with urllib.request.urlopen(feed_url, timeout=30) as response:
         catalog = json.load(response)
     return {entry["cveID"] for entry in catalog["vulnerabilities"]}
 
 
 def findings(report_path: str) -> list[tuple[str, str, str, list[str]]]:
+    """(package, version, advisory id, CVE aliases) for every advisory in a pip-audit JSON report."""
     with open(report_path) as handle:
         report = json.load(handle)
     rows = []
@@ -30,6 +34,7 @@ def findings(report_path: str) -> list[tuple[str, str, str, list[str]]]:
 
 
 def main(report_path: str) -> int:
+    """Print every advisory and return 1 if any of them is known to be exploited."""
     rows = findings(report_path)
     exploited = known_exploited()
     blocking = [row for row in rows if exploited.intersection(row[3])]

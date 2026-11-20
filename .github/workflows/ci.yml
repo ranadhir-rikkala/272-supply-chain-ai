@@ -19,6 +19,7 @@ env:
   FLYWAY_IMAGE: flyway/flyway:10-alpine
 
 jobs:
+  # Lint plus every unit and integration test against real Postgres and RabbitMQ.
   python:
     name: Python lint and tests
     runs-on: ubuntu-latest
@@ -58,6 +59,7 @@ jobs:
         run: ruff check .
       - name: Ruff format
         run: ruff format --check .
+      # Integration tests need the Flyway schema, so migrate the service database first.
       - name: Migrate test database
         run: >-
           docker run --rm --network host -v "$PWD/db/migrations:/flyway/sql:ro" "$FLYWAY_IMAGE"
@@ -73,6 +75,7 @@ jobs:
           name: python-test-report
           path: reports/python-tests.xml
 
+  # Proves the full migration history applies to an empty database and still validates.
   flyway:
     name: Flyway migrate and validate
     runs-on: ubuntu-latest
@@ -99,6 +102,7 @@ jobs:
               -placeholders.forecast_db_password=ci-only-password "$command"
           done
 
+  # Platform API (Teammate C); skipped until services/platform-api is on the branch.
   java:
     name: Platform API build and tests
     runs-on: ubuntu-latest
@@ -145,6 +149,7 @@ jobs:
       - run: npm test
       - run: npm run build
 
+  # Monday checklist: block known-exploited Python flaws, critical npm flaws and committed secrets.
   dependency-scan:
     name: Dependency scan
     runs-on: ubuntu-latest
@@ -177,6 +182,7 @@ jobs:
           ignore-unfixed: true
           exit-code: "1"
 
+  # Builds every image after the tests pass; pushes to GHCR only from main, using GITHUB_TOKEN instead of stored keys.
   images:
     name: Docker image ${{ matrix.name }}
     runs-on: ubuntu-latest
@@ -234,6 +240,7 @@ jobs:
             ${{ steps.image.outputs.ref }}:latest
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+      # Critical OS or library flaws with an available fix fail the build before anything is pushed.
       - name: Scan image with Trivy
         if: steps.present.outputs.found == 'true'
         uses: aquasecurity/trivy-action@0.28.0
