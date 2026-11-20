@@ -173,7 +173,7 @@ jobs:
         working-directory: dashboard
         run: npm audit --omit=dev --audit-level=critical
       - name: Scan repository with Trivy
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
           scan-ref: .
@@ -243,7 +243,7 @@ jobs:
       # Critical OS or library flaws with an available fix fail the build before anything is pushed.
       - name: Scan image with Trivy
         if: steps.present.outputs.found == 'true'
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ steps.image.outputs.ref }}:${{ github.sha }}
           severity: CRITICAL
