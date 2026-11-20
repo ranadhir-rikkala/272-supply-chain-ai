@@ -48,7 +48,7 @@ def test_validation_reason_and_line_number(tmp_path: Path):
         "warehouse_id": "WH-01",
         "units_sold": "1",
         "unit_price": "2",
-        "promotion": "0",
+        "promo_flag": "0",
         "feed_date": "2023-01-01",
         "sale_id": "x",
     }
