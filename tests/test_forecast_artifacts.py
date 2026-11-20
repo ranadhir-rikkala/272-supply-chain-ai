@@ -1,3 +1,5 @@
+"""Model artifacts in object storage and checksum verification."""
+
 import json
 
 import numpy as np

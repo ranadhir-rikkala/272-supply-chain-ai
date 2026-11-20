@@ -1,3 +1,5 @@
+"""Feature values, Black Friday dates and the 7-day visibility gap."""
+
 from datetime import date
 
 import numpy as np

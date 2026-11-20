@@ -1,3 +1,5 @@
+"""Quality gate, registration, activation and rollback."""
+
 import os
 from datetime import date
 

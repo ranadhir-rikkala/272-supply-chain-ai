@@ -1,3 +1,5 @@
+"""WAPE and MAPE at daily and weekly grain, overall and per category and warehouse."""
+
 from __future__ import annotations
 
 import math
@@ -13,6 +15,7 @@ OVERALL = "ALL"
 
 
 def wape(actual: np.ndarray, predicted: np.ndarray) -> float | None:
+    """Weighted absolute percentage error, or None when there were no actual sales."""
     total = float(np.sum(actual))
     if total <= 0:
         return None
@@ -20,6 +23,7 @@ def wape(actual: np.ndarray, predicted: np.ndarray) -> float | None:
 
 
 def mape(actual: np.ndarray, predicted: np.ndarray) -> float | None:
+    """Mean absolute percentage error over days with positive actual sales."""
     positive = actual > 0
     if not positive.any():
         return None
@@ -47,6 +51,7 @@ def _frame(result: BacktestResult, categories: np.ndarray, warehouses: np.ndarra
 def _weekly(daily: pd.DataFrame, result: BacktestResult) -> pd.DataFrame:
     block_lengths = pd.Series(result.horizon).groupby(result.origin_day).max()
     complete_weeks = block_lengths // WEEK_DAYS
+    # Partial weeks at the end of the short last block would distort weekly WAPE.
     keep = daily["week"] < daily["origin_day"].map(complete_weeks)
     keys = ["series", "origin_day", "week", "CATEGORY", "WAREHOUSE"]
     return daily[keep].groupby(keys, as_index=False)[["actual", "yhat", "baseline"]].sum()
@@ -71,6 +76,7 @@ def _row(grain: str, segment_type: str, segment_value: str, frame: pd.DataFrame)
 def segment_metrics(
     result: BacktestResult, categories: np.ndarray, warehouses: np.ndarray
 ) -> list[dict]:
+    """Metric rows for every grain and segment, with the baseline next to the model."""
     daily = _frame(result, categories, warehouses)
     rows = []
     for grain, frame in (("DAILY", daily), ("WEEKLY", _weekly(daily, result))):
@@ -88,6 +94,7 @@ def _clean(value: float | None) -> float | None:
 
 
 def summarize(rows: list[dict]) -> dict:
+    """Nest metric rows into the ml.model_version metrics JSON from the contract."""
     summary: dict = {}
     for row in rows:
         grain = row["grain"].lower()

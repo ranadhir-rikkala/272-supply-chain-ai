@@ -1,3 +1,5 @@
+"""Load sales and inventory facts into dense per-series, per-day arrays."""
+
 from __future__ import annotations
 
 import io
@@ -13,6 +15,8 @@ PROMO_COLUMN_CANDIDATES = ("promo_flag", "promotion")
 
 @dataclass(frozen=True)
 class SalesPanel:
+    """Dense arrays for every (sku, warehouse) series over a continuous date range."""
+
     start: date
     skus: np.ndarray
     warehouses: np.ndarray
@@ -25,29 +29,36 @@ class SalesPanel:
 
     @property
     def series_count(self) -> int:
+        """Number of (sku, warehouse) series in the panel."""
         return self.units.shape[0]
 
     @property
     def day_count(self) -> int:
+        """Number of days in the panel."""
         return self.units.shape[1]
 
     @property
     def end(self) -> date:
+        """Last date covered by the panel."""
         return self.start + timedelta(days=self.day_count - 1)
 
     def date_at(self, day_index: int) -> date:
+        """Calendar date of a day index."""
         return self.start + timedelta(days=day_index)
 
     def day_index(self, day: date) -> int:
+        """Day index of a calendar date."""
         return (day - self.start).days
 
     def series_index(self, sku: str, warehouse_id: str) -> int:
+        """Row of a (sku, warehouse) series; raises KeyError if it is unknown."""
         matches = np.flatnonzero((self.skus == sku) & (self.warehouses == warehouse_id))
         if matches.size == 0:
             raise KeyError((sku, warehouse_id))
         return int(matches[0])
 
     def through(self, last_day: date) -> SalesPanel:
+        """Copy of the panel that ends on last_day, hiding every later day."""
         days = self.day_index(last_day) + 1
         if days < 1 or days > self.day_count:
             raise ValueError(f"{last_day} is outside the panel {self.start}..{self.end}")
@@ -69,6 +80,7 @@ def build_panel(
     start: date | None = None,
     end: date | None = None,
 ) -> SalesPanel:
+    """Build a SalesPanel from product, warehouse, sales and inventory frames."""
     products = products.sort_values("sku").reset_index(drop=True)
     warehouse_ids = np.sort(warehouses["warehouse_id"].to_numpy(dtype=object))
     skus = products["sku"].to_numpy(dtype=object)
@@ -95,6 +107,7 @@ def build_panel(
         rows = warehouse_codes.astype(np.int64) * len(skus) + sku_codes
         return valid, rows[valid], day_codes[valid]
 
+    # Days without a sales row stay NaN, not 0, so quarantined rows are not read as zero demand.
     units = np.full(shape, np.nan, dtype=np.float32)
     promo = np.zeros(shape, dtype=bool)
     price_index = np.ones(shape, dtype=np.float32)
@@ -160,6 +173,7 @@ def _date_filter(column: str, start: date | None, end: date | None) -> sql.Compo
 
 
 def load_panel(connection, start: date | None = None, end: date | None = None) -> SalesPanel:
+    """Read the facts from Postgres with COPY and return a SalesPanel."""
     with connection.cursor() as cursor:
         products = _copy_frame(
             cursor, sql.SQL("SELECT sku, category, unit_price FROM core.dim_product")
@@ -181,6 +195,7 @@ def load_panel(connection, start: date | None = None, end: date | None = None) -
         inventory = _copy_frame(
             cursor,
             sql.SQL(
+                # Booleans are cast to integers because pandas reads Postgres 't' and 'f' as text.
                 "SELECT feed_date, sku, warehouse_id, on_hand, stockout_flag::int AS stockout_flag "
                 "FROM core.fact_inventory_daily WHERE {}"
             ).format(_date_filter("feed_date", start, end)),

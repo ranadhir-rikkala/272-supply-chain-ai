@@ -1,3 +1,4 @@
+-- Least-privilege role for forecast-api and forecast-worker: read core, read and write ml.
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'forecast_service') THEN
@@ -5,6 +6,7 @@ BEGIN
     END IF;
 END
 $$;
+-- The password comes from a Flyway placeholder, so it never lives in git.
 ALTER ROLE forecast_service WITH LOGIN PASSWORD '${forecast_db_password}';
 GRANT CONNECT ON DATABASE ${flyway:database} TO forecast_service;
 GRANT USAGE ON SCHEMA core TO forecast_service;

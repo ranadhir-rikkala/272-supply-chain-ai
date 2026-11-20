@@ -1,3 +1,5 @@
+"""Recursive XGBoost forecaster, including the proof that future data cannot change a forecast."""
+
 import numpy as np
 import pytest
 from forecast_fixtures import (

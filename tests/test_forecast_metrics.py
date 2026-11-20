@@ -1,3 +1,5 @@
+"""WAPE and MAPE formulas and segment metrics."""
+
 import numpy as np
 import pytest
 

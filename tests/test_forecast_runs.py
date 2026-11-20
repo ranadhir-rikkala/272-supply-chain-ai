@@ -1,3 +1,5 @@
+"""Forecast runs: creation, execution, failure and the current-forecast view."""
+
 import os
 import uuid
 from datetime import date, timedelta

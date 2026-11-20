@@ -1,3 +1,5 @@
+"""Training pipeline: fingerprint, version name and registration."""
+
 import os
 from datetime import UTC, datetime
 

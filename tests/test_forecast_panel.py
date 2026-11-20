@@ -1,3 +1,5 @@
+"""Panel loader: dense layout, missing days, cut-off and COPY from Postgres."""
+
 import os
 import uuid
 from datetime import date

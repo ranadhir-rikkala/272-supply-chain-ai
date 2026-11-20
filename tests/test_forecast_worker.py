@@ -1,3 +1,5 @@
+"""Forecast worker: job dispatch, retries and the dead-letter path on an isolated queue."""
+
 import json
 import os
 import socket

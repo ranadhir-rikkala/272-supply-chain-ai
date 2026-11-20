@@ -1,3 +1,5 @@
+"""JSON logging with request ids."""
+
 from __future__ import annotations
 
 import json
@@ -10,6 +12,7 @@ from contextvars import ContextVar
 from datetime import UTC, datetime
 
 REQUEST_ID_HEADER = "X-Request-ID"
+# Only safe characters, so a header value cannot inject text into the logs.
 REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 request_id_var: ContextVar[str | None] = ContextVar("request_id", default=None)
 
@@ -21,13 +24,17 @@ STANDARD_RECORD_FIELDS = set(logging.LogRecord("", 0, "", 0, "", (), None).__dic
 
 
 def resolve_request_id(candidate: str | None) -> str:
+    """Use the caller's X-Request-ID if it is safe, otherwise create a new one."""
     if candidate and REQUEST_ID_PATTERN.fullmatch(candidate):
         return candidate
     return str(uuid.uuid4())
 
 
 class JsonFormatter(logging.Formatter):
+    """Format log records as one JSON object per line with the request id."""
+
     def format(self, record: logging.LogRecord) -> str:
+        """Render a record as JSON, including any extra fields."""
         document = {
             "timestamp": datetime.fromtimestamp(record.created, UTC).isoformat(),
             "level": record.levelname,
@@ -47,6 +54,7 @@ class JsonFormatter(logging.Formatter):
 
 
 def configure_logging(level: str | None = None) -> None:
+    """Send all logs, including uvicorn's, to stdout as JSON."""
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(JsonFormatter())
     root = logging.getLogger()

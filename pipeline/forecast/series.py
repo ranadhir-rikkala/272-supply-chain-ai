@@ -1,8 +1,10 @@
+"""History, backtest and forecast of one series for the series endpoint."""
+
 from __future__ import annotations
 
 
 class SeriesNotFound(LookupError):
-    pass
+    """Raised when the sku or warehouse is unknown."""
 
 
 HISTORY_QUERY = """
@@ -38,6 +40,7 @@ ORDER BY target_date
 
 
 def fetch_series(connection, sku: str, warehouse_id: str, history_days: int) -> dict:
+    """History, backtest of the ACTIVE model and current forecast for one series."""
     parameters = {"sku": sku, "warehouse_id": warehouse_id, "history_days": history_days}
     with connection.cursor() as cursor:
         cursor.execute(

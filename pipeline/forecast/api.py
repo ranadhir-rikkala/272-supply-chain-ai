@@ -1,3 +1,5 @@
+"""Internal forecast service called by the platform API."""
+
 import hmac
 import logging
 import os
@@ -53,6 +55,8 @@ DATABASE_RETRY_SECONDS = "5"
 
 @dataclass(frozen=True)
 class Settings:
+    """Service configuration read from the environment."""
+
     database_url: str
     service_token: str
     pool_min_size: int = 1
@@ -61,6 +65,7 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> "Settings":
+        """Read settings; refuses to start without a service token of at least 16 characters."""
         token = os.getenv("FORECAST_SERVICE_TOKEN", "")
         if len(token) < 16:
             raise RuntimeError("FORECAST_SERVICE_TOKEN must be set to at least 16 characters")
@@ -72,6 +77,8 @@ class Settings:
 
 
 class ApiProblem(Exception):
+    """An error that is returned as RFC 9457 problem+json."""
+
     def __init__(self, status: int, slug: str, title: str, detail: str, **extra: Any):
         super().__init__(detail)
         self.status, self.slug, self.title, self.detail, self.extra = (
@@ -84,19 +91,27 @@ class ApiProblem(Exception):
 
 
 class StrictBody(BaseModel):
+    """Request body base that rejects unknown fields."""
+
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
 
 class ActivationRequest(StrictBody):
+    """Body of POST /v1/models/{version}/activation."""
+
     requested_by: str = Field(pattern=ACTOR_PATTERN)
     reason: str = Field(min_length=3, max_length=500)
 
 
 class TrainingRequest(StrictBody):
+    """Body of POST /v1/training-runs."""
+
     requested_by: str = Field(pattern=ACTOR_PATTERN)
 
 
 class ForecastRunRequest(StrictBody):
+    """Body of POST /v1/forecast-runs."""
+
     requested_by: str = Field(pattern=ACTOR_PATTERN)
     origin_date: date | None = None
     horizon_days: int = Field(default=HORIZON_DAYS, ge=1, le=HORIZON_DAYS)
@@ -111,6 +126,7 @@ def problem_response(
     headers: dict | None = None,
     **extra: Any,
 ) -> JSONResponse:
+    """Build an application/problem+json response that includes the request id."""
     body = {
         "type": f"{PROBLEM_BASE}{slug}" if slug != "about:blank" else "about:blank",
         "title": title,
@@ -189,12 +205,14 @@ def create_app(
     pool: ConnectionPool | None = None,
     publisher=None,
 ) -> FastAPI:
+    """Build the FastAPI app with its connection pool, job publisher and metrics."""
     settings = settings or Settings.from_env()
     pool = pool or ConnectionPool(
         settings.database_url,
         min_size=settings.pool_min_size,
         max_size=settings.pool_max_size,
         timeout=settings.pool_timeout_seconds,
+        # Each pooled connection is tested before use, so a database restart does not surface as a 500.
         check=ConnectionPool.check_connection,
         open=False,
         name="forecast-api",
@@ -224,6 +242,7 @@ def create_app(
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         if pool.closed:
+            # Startup does not wait for the database; readiness reports DOWN until it is reachable.
             pool.open(wait=False)
         yield
         pool.close()
@@ -238,8 +257,10 @@ def create_app(
     app.state.pool = pool
 
     def require_token(request: Request) -> None:
+        """Reject requests without the service bearer token."""
         header = request.headers.get("Authorization", "")
         scheme, _, token = header.partition(" ")
+        # Constant-time comparison, so response timing does not reveal the token.
         if scheme.lower() != "bearer" or not hmac.compare_digest(
             token.encode(), settings.service_token.encode()
         ):
@@ -344,10 +365,12 @@ def create_app(
 
     @app.get("/health/live")
     def live() -> dict:
+        """Liveness: the process is up."""
         return {"status": "UP"}
 
     @app.get("/health/ready")
     def ready(request: Request):
+        """Readiness: the database answers; also reports the ACTIVE model."""
         try:
             with pool.connection(timeout=2) as conn:
                 model = active_model(conn)
@@ -369,15 +392,18 @@ def create_app(
 
     @app.get("/metrics")
     def metrics() -> Response:
+        """Prometheus metrics."""
         return Response(generate_latest(registry), media_type=CONTENT_TYPE_LATEST)
 
     @app.get("/v1/models", dependencies=[Authorized])
     def models() -> dict:
+        """All model versions with their weekly and daily WAPE."""
         with pool.connection() as conn:
             return {"items": [_summary(model) for model in list_models(conn)]}
 
     @app.get("/v1/models/active", dependencies=[Authorized])
     def models_active() -> dict:
+        """The ACTIVE model with metrics by category and warehouse."""
         with pool.connection() as conn:
             model = active_model(conn)
             if model is None:
@@ -386,6 +412,7 @@ def create_app(
 
     @app.get("/v1/models/{version}", dependencies=[Authorized])
     def model_detail(version: Annotated[str, Path(pattern=VERSION_PATTERN)]) -> dict:
+        """One model version with segment metrics and status history."""
         try:
             with pool.connection() as conn:
                 return _detail(get_model(conn, version))
@@ -398,6 +425,7 @@ def create_app(
     def activation(
         version: Annotated[str, Path(pattern=VERSION_PATTERN)], body: ActivationRequest
     ) -> dict:
+        """Promote a gate-passing model or roll back to an older one; 409 if it failed the gate."""
         with pool.connection() as conn:
             return _activate(conn, version, body)
 
@@ -421,6 +449,7 @@ def create_app(
 
     @app.post("/v1/training-runs", status_code=202, dependencies=[Authorized])
     def training_runs(request: Request, body: TrainingRequest) -> dict:
+        """Queue a training job."""
         job_id = str(uuid.uuid4())
         message = {"job_type": TRAINING_JOB, "job_id": job_id, "requested_by": body.requested_by}
         try:
@@ -433,6 +462,7 @@ def create_app(
 
     @app.post("/v1/forecast-runs", status_code=202, dependencies=[Authorized])
     def forecast_runs(request: Request, response: Response, body: ForecastRunRequest) -> dict:
+        """Queue a forecast run for the ACTIVE model."""
         with pool.connection() as conn:
             return _queue_forecast(conn, request, response, body)
 
@@ -451,6 +481,7 @@ def create_app(
             publisher.publish(message, request.state.request_id)
         except JobPublishError:
             jobs_published.labels(FORECAST_JOB, "failed").inc()
+            # The run row already exists, so mark it FAILED rather than leave it QUEUED forever.
             mark_failed(conn, run["run_id"], "could not enqueue the forecast job")
             raise
         jobs_published.labels(FORECAST_JOB, "queued").inc()
@@ -459,6 +490,7 @@ def create_app(
 
     @app.get("/v1/forecast-runs/{run_id}", dependencies=[Authorized])
     def forecast_run(run_id: uuid.UUID) -> dict:
+        """Status of a forecast run."""
         try:
             with pool.connection() as conn:
                 return _run(get_run(conn, run_id))
@@ -473,6 +505,7 @@ def create_app(
         warehouse_id: Annotated[str, Path(pattern=WAREHOUSE_PATTERN)],
         history_days: Annotated[int, Query(ge=1, le=1096)] = 120,
     ) -> dict:
+        """History, backtest and forecast of one series."""
         try:
             with pool.connection() as conn:
                 return fetch_series(conn, sku, warehouse_id, history_days)

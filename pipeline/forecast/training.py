@@ -1,3 +1,5 @@
+"""Train, backtest, gate and register a model in one step."""
+
 from __future__ import annotations
 
 import hashlib
@@ -24,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 def data_fingerprint(panel: SalesPanel) -> str:
+    """SHA-256 of the panel's data, so a model records exactly what it was trained on."""
     digest = hashlib.sha256()
     digest.update(f"{panel.start}:{panel.units.shape}".encode())
     for values in (panel.skus, panel.warehouses):
@@ -35,6 +38,7 @@ def data_fingerprint(panel: SalesPanel) -> str:
 
 
 def new_version(fingerprint: str, now: datetime | None = None) -> str:
+    """Version name: UTC timestamp plus the start of the data fingerprint."""
     moment = now or datetime.now(UTC)
     return f"{moment:%Y%m%d%H%M%S}-{fingerprint[:8]}"
 
@@ -47,6 +51,7 @@ def train_and_register(
     rounds: int | None = None,
     panel: SalesPanel | None = None,
 ) -> dict:
+    """Train on everything before the backtest window, backtest, gate, store and register."""
     panel = panel or load_panel(connection)
     categories = tuple(sorted(set(panel.categories)))
     warehouses = tuple(sorted(set(panel.warehouses)))

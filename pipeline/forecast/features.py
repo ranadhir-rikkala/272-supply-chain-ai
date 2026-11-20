@@ -1,3 +1,5 @@
+"""Model features computed from history that ends at least 7 days before the target."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -35,6 +37,8 @@ CATEGORICAL_FEATURES = ("category", "warehouse")
 
 @dataclass(frozen=True)
 class SeriesHistory:
+    """Arrays the features are computed from, plus encoded category and warehouse codes."""
+
     start: date
     units: np.ndarray
     stockout: np.ndarray
@@ -51,6 +55,8 @@ class SeriesHistory:
         warehouses: tuple[str, ...],
         extra_days: int = 0,
     ) -> SeriesHistory:
+        """Build a history from a panel, optionally padded with unknown future days."""
+
         def extend(values: np.ndarray, fill) -> np.ndarray:
             if extra_days == 0:
                 return values.copy()
@@ -74,17 +80,20 @@ def _codes(values: np.ndarray, vocabulary: tuple[str, ...]) -> np.ndarray:
 
 
 def black_friday(year: int) -> date:
+    """Black Friday of a year: the day after the fourth Thursday of November."""
     first_of_november = date(year, 11, 1)
     first_thursday = first_of_november + timedelta(days=(3 - first_of_november.weekday()) % 7)
     return first_thursday + timedelta(days=22)
 
 
 def days_from_nearest_black_friday(day: date) -> int:
+    """Signed days from the closest Black Friday in the previous, same or next year."""
     candidates = (black_friday(day.year - 1), black_friday(day.year), black_friday(day.year + 1))
     return min(((day - candidate).days for candidate in candidates), key=abs)
 
 
 def _prefix_sums(values: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    # Prefix sums give every rolling window in constant time and let missing days be skipped.
     observed = ~np.isnan(values)
     filled = np.where(observed, values, 0.0).astype(np.float64)
     zeros = np.zeros((values.shape[0], 1))
@@ -108,6 +117,7 @@ def _column(values: np.ndarray, day: int) -> np.ndarray:
 
 
 def build_features(history: SeriesHistory, days: np.ndarray) -> np.ndarray:
+    """Feature matrix for every series on each target day, ordered day by day."""
     series_count = history.units.shape[0]
     total, squares, count = _prefix_sums(history.units)
     stockout_total = np.concatenate(
@@ -116,6 +126,7 @@ def build_features(history: SeriesHistory, days: np.ndarray) -> np.ndarray:
     blocks = []
     for day in days:
         day = int(day)
+        # Every window ends 7 days back, so a whole week can be predicted from known data.
         last_visible = day - FEATURE_GAP_DAYS
         columns = [_column(history.units, day - lag) for lag in LAGS]
         for window in ROLLING_MEAN_WINDOWS:

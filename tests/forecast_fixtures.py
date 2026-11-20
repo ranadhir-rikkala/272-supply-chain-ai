@@ -1,3 +1,5 @@
+"""Synthetic data shared by the forecasting tests."""
+
 from datetime import date
 
 import numpy as np
@@ -11,6 +13,7 @@ WEEKLY = np.array([0.9, 0.9, 0.95, 1.0, 1.1, 1.25, 1.0])
 
 
 def synthetic_history(series_per_cell: int = 5, days: int = 760, seed: int = 11) -> SeriesHistory:
+    """Seasonal synthetic demand with weekly pattern, noise and 3% stockouts."""
     rng = np.random.default_rng(seed)
     cells = [(c, w) for c in range(len(CATEGORIES)) for w in range(len(WAREHOUSES))]
     series = [cell for cell in cells for _ in range(series_per_cell)]
@@ -44,6 +47,7 @@ TEST_SUPPLIER = "SUP-T01"
 
 
 def synthetic_panel(series_per_cell: int = 1, days: int = 760):
+    """SalesPanel built from synthetic_history with TST- products and WH-T warehouses."""
     from pipeline.forecast.panel import SalesPanel
 
     history = synthetic_history(series_per_cell=series_per_cell, days=days)
@@ -69,6 +73,7 @@ def synthetic_panel(series_per_cell: int = 1, days: int = 760):
 
 
 def ensure_dimensions(connection, panel) -> None:
+    """Insert the test products, warehouses and supplier the panel refers to."""
     with connection.cursor() as cursor:
         cursor.execute(
             "INSERT INTO core.dim_supplier VALUES (%s, 'Test', 'US-WEST', 4, 1) "

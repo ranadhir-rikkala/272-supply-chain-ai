@@ -1,3 +1,5 @@
+"""RabbitMQ worker that runs forecast and training jobs."""
+
 from __future__ import annotations
 
 import logging
@@ -27,7 +29,7 @@ DEAD_LETTERED = Counter(
 
 
 class UnknownJobType(ValueError):
-    pass
+    """Raised for a job_type the worker does not handle."""
 
 
 def _connect():
@@ -43,6 +45,7 @@ def _store():
 
 
 def handle_job(message: dict, connect: Callable = _connect, store_factory: Callable = _store):
+    """Run one forecast or training job; any exception makes the consumer retry it."""
     job_type = message.get("job_type")
     if job_type not in (FORECAST_JOB, TRAINING_JOB):
         raise UnknownJobType(f"unknown job_type {job_type!r}")
@@ -73,6 +76,7 @@ def handle_job(message: dict, connect: Callable = _connect, store_factory: Calla
 
 
 def handle_dead_letter(message: dict | None, reason: str, connect: Callable = _connect) -> None:
+    """Record a dead-lettered job and mark its forecast run FAILED."""
     job_type = (message or {}).get("job_type", "unknown")
     DEAD_LETTERED.labels(str(job_type)).inc()
     logger.error("job dead-lettered", extra={"job_type": job_type, "reason": reason})
@@ -85,6 +89,7 @@ def handle_dead_letter(message: dict | None, reason: str, connect: Callable = _c
 
 
 def run_worker() -> None:
+    """Consume jobs until SIGTERM, using the shared consumer with retries and a dead-letter queue."""
     from pipeline.messaging import FeedConsumer
 
     topology = JobTopology.from_env()

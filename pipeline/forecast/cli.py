@@ -1,3 +1,5 @@
+"""scforecast command line: train, predict, activate, serve and worker."""
+
 from __future__ import annotations
 
 import argparse
@@ -66,6 +68,7 @@ COMMANDS = {
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Argument parser for all scforecast commands."""
     parser = argparse.ArgumentParser(prog="scforecast", description="Demand forecasting")
     sub = parser.add_subparsers(dest="command", required=True)
     train_parser = sub.add_parser("train", help="train, backtest and register a model")
@@ -87,6 +90,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> None:
+    """Entry point of the scforecast command."""
     from pipeline.forecast.observability import configure_logging
 
     configure_logging()

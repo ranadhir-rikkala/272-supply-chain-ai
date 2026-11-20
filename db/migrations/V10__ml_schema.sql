@@ -1,3 +1,4 @@
+-- Schema ml: model registry, backtests and forecasts (Teammate B).
 CREATE SCHEMA IF NOT EXISTS ml;
 
 CREATE TABLE ml.model_version (
@@ -15,8 +16,10 @@ CREATE TABLE ml.model_version (
     created_at timestamptz NOT NULL DEFAULT now(),
     activated_at timestamptz,
     CHECK (train_start <= train_end AND train_end < test_start AND test_start <= test_end),
+    -- Only a model that passed the quality gate can ever be ACTIVE.
     CHECK (status <> 'ACTIVE' OR passed_gate)
 );
+-- At most one ACTIVE model; activating another one means retiring the current one first.
 CREATE UNIQUE INDEX model_version_single_active ON ml.model_version ((true)) WHERE status = 'ACTIVE';
 
 CREATE TABLE ml.model_status_history (
@@ -82,6 +85,7 @@ CREATE TABLE ml.forecast (
     PRIMARY KEY (run_id, sku, warehouse_id, target_date)
 );
 
+-- The forecast of the latest SUCCEEDED run, which the platform API reads.
 CREATE OR REPLACE VIEW ml.v_current_forecast AS
 WITH latest_run AS (
     SELECT run_id

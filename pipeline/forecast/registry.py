@@ -1,3 +1,5 @@
+"""Model registry: quality gate, registration, activation and rollback."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -13,21 +15,25 @@ REGISTRY_LOCK_KEY = 272_010
 
 
 class ModelNotFound(LookupError):
-    pass
+    """Raised when a model version does not exist."""
 
 
 class QualityGateFailed(RuntimeError):
-    pass
+    """Raised when activating a model that did not pass the quality gate."""
 
 
 @dataclass(frozen=True)
 class GateDecision:
+    """Whether a model passed the gate and, if not, why."""
+
     passed: bool
     reasons: tuple[str, ...]
 
 
 @dataclass(frozen=True)
 class TrainingWindows:
+    """Training and test date ranges of a model version."""
+
     train_start: date
     train_end: date
     test_start: date
@@ -35,6 +41,7 @@ class TrainingWindows:
 
 
 def evaluate_gate(summary: dict, max_weekly_wape: float = GATE_MAX_WEEKLY_WAPE) -> GateDecision:
+    """Pass when weekly WAPE is below the limit and below the seasonal-naive baseline."""
     weekly = summary.get("weekly", {})
     model_wape = weekly.get("wape")
     baseline_wape = weekly.get("baseline_wape")
@@ -70,6 +77,7 @@ def register_model(
     params: dict,
     created_by: str,
 ) -> str:
+    """Store a model version with its metrics; failing models are stored as REJECTED."""
     status = "CANDIDATE" if gate.passed else "REJECTED"
     metrics = {**summary, "gate": {"passed": gate.passed, "reasons": list(gate.reasons)}}
     with connection.cursor() as cursor:
@@ -123,6 +131,7 @@ def save_backtest(
     warehouses: np.ndarray,
     start: date,
 ) -> int:
+    """Write the backtest rows of a model version with COPY."""
     observed = ~np.isnan(result.actual)
     columns = (
         "model_version, origin_date, sku, warehouse_id, target_date, horizon, "
@@ -151,7 +160,9 @@ def save_backtest(
 
 
 def activate_model(connection, version: str, requested_by: str, reason: str) -> dict:
+    """Make a gate-passing version ACTIVE and retire the previous one; this is also the rollback."""
     with connection.transaction(), connection.cursor() as cursor:
+        # Serialize activations so two concurrent requests cannot fight over the single ACTIVE slot.
         cursor.execute("SELECT pg_advisory_xact_lock(%s)", (REGISTRY_LOCK_KEY,))
         cursor.execute(
             "SELECT status, passed_gate FROM ml.model_version WHERE model_version = %s FOR UPDATE",
@@ -201,12 +212,14 @@ def _model_dict(cursor, row) -> dict:
 
 
 def list_models(connection) -> list[dict]:
+    """All model versions, newest first."""
     with connection.cursor() as cursor:
         cursor.execute(f"SELECT {MODEL_COLUMNS} FROM ml.model_version ORDER BY created_at DESC")
         return [_model_dict(cursor, row) for row in cursor.fetchall()]
 
 
 def active_model(connection) -> dict | None:
+    """The ACTIVE model version, or None."""
     with connection.cursor() as cursor:
         cursor.execute(f"SELECT {MODEL_COLUMNS} FROM ml.model_version WHERE status = 'ACTIVE'")
         row = cursor.fetchone()
@@ -214,6 +227,7 @@ def active_model(connection) -> dict | None:
 
 
 def get_model(connection, version: str) -> dict:
+    """A model version with its segment metrics and status history."""
     with connection.cursor() as cursor:
         cursor.execute(
             f"SELECT {MODEL_COLUMNS} FROM ml.model_version WHERE model_version = %s", (version,)

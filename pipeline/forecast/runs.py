@@ -1,3 +1,5 @@
+"""Forecast runs: queue, execute and record the outcome."""
+
 from __future__ import annotations
 
 import logging
@@ -19,11 +21,11 @@ MINIMUM_HISTORY_DAYS = 371
 
 
 class NoActiveModel(RuntimeError):
-    pass
+    """Raised when a run is requested but no model is ACTIVE."""
 
 
 class RunNotFound(LookupError):
-    pass
+    """Raised when a run id does not exist."""
 
 
 def _as_dict(cursor, row) -> dict:
@@ -37,6 +39,7 @@ def create_run(
     horizon_days: int = HORIZON_DAYS,
     run_id: uuid.UUID | None = None,
 ) -> dict:
+    """Record a QUEUED run for the ACTIVE model."""
     if not 1 <= horizon_days <= HORIZON_DAYS:
         raise ValueError(f"horizon_days must be between 1 and {HORIZON_DAYS}")
     with connection.cursor() as cursor:
@@ -55,6 +58,7 @@ def create_run(
 
 
 def get_run(connection, run_id: uuid.UUID) -> dict:
+    """A forecast run by id."""
     with connection.cursor() as cursor:
         cursor.execute(f"SELECT {RUN_COLUMNS} FROM ml.forecast_run WHERE run_id = %s", (run_id,))
         row = cursor.fetchone()
@@ -64,6 +68,7 @@ def get_run(connection, run_id: uuid.UUID) -> dict:
 
 
 def mark_failed(connection, run_id: uuid.UUID, error: str) -> None:
+    """Mark a run FAILED unless it already succeeded."""
     connection.rollback()
     connection.execute(
         "UPDATE ml.forecast_run SET status = 'FAILED', finished_at = clock_timestamp(), error = %s "
@@ -77,6 +82,7 @@ def _claim(connection, run_id: uuid.UUID) -> dict | None:
     with connection.cursor() as cursor:
         cursor.execute(
             "UPDATE ml.forecast_run SET status = 'RUNNING', started_at = now(), error = NULL "
+            # RUNNING is accepted so a retried message can redo a run that crashed midway.
             "WHERE run_id = %s AND status IN ('QUEUED', 'RUNNING') "
             f"RETURNING {RUN_COLUMNS}",
             (run_id,),
@@ -88,6 +94,7 @@ def _claim(connection, run_id: uuid.UUID) -> dict | None:
 
 
 def forecast_panel(panel: SalesPanel, model, origin_date: date, horizon_days: int):
+    """Forecast every series from origin_date using only data up to that date."""
     if origin_date < panel.start + timedelta(days=MINIMUM_HISTORY_DAYS):
         raise ValueError(f"origin {origin_date} needs at least a year of history")
     visible = panel.through(origin_date)
@@ -96,6 +103,7 @@ def forecast_panel(panel: SalesPanel, model, origin_date: date, horizon_days: in
 
 
 def execute_run(connection, store, run_id: uuid.UUID, panel: SalesPanel | None = None) -> dict:
+    """Run a queued forecast and write one row per series and day."""
     run = _claim(connection, run_id)
     if run is None:
         existing = get_run(connection, run_id)
@@ -107,6 +115,7 @@ def execute_run(connection, store, run_id: uuid.UUID, panel: SalesPanel | None =
     horizon = run["horizon_days"]
     values = forecast_panel(panel, model, origin, horizon)
     with connection.cursor() as cursor:
+        # Delete first so a retried run never leaves duplicate rows.
         cursor.execute("DELETE FROM ml.forecast WHERE run_id = %s", (run_id,))
         columns = "run_id, sku, warehouse_id, target_date, horizon, yhat, model_version"
         with cursor.copy(f"COPY ml.forecast ({columns}) FROM STDIN") as copy:
@@ -126,6 +135,7 @@ def execute_run(connection, store, run_id: uuid.UUID, panel: SalesPanel | None =
                     )
         rows = values.shape[0] * horizon
         cursor.execute(
+            # clock_timestamp() because now() is the start of the transaction, not the end of the run.
             "UPDATE ml.forecast_run SET status = 'SUCCEEDED', finished_at = clock_timestamp(), "
             f"origin_date = %s, rows_written = %s WHERE run_id = %s RETURNING {RUN_COLUMNS}",
             (origin, rows, run_id),

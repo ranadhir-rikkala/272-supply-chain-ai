@@ -1,3 +1,5 @@
+"""Backtest blocks, seasonal-naive baseline and leakage checks."""
+
 import numpy as np
 import pytest
 from forecast_fixtures import CATEGORIES, FAST_PARAMS, FAST_ROUNDS, WAREHOUSES, synthetic_history

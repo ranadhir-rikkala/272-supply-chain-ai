@@ -1,3 +1,5 @@
+"""Forecast API with FastAPI TestClient: auth, errors, outages and every endpoint."""
+
 import os
 from datetime import date, timedelta
 
