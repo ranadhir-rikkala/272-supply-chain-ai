@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import sys
+from datetime import date
 
 
 def _connect():
@@ -30,7 +31,16 @@ def _activate(args) -> dict:
         return activate_model(connection, args.version, args.requested_by, args.reason)
 
 
-COMMANDS = {"train": _train, "activate": _activate}
+def _predict(args) -> dict:
+    from pipeline.forecast.artifacts import default_store
+    from pipeline.forecast.runs import create_run, execute_run
+
+    with _connect() as connection:
+        run = create_run(connection, args.requested_by, args.origin_date, args.horizon_days)
+        return execute_run(connection, default_store(), run["run_id"])
+
+
+COMMANDS = {"train": _train, "activate": _activate, "predict": _predict}
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -39,6 +49,10 @@ def build_parser() -> argparse.ArgumentParser:
     train_parser = sub.add_parser("train", help="train, backtest and register a model")
     train_parser.add_argument("--requested-by", default="cli")
     train_parser.add_argument("--rounds", type=int)
+    predict_parser = sub.add_parser("predict", help="run a forecast with the ACTIVE model")
+    predict_parser.add_argument("--requested-by", default="cli")
+    predict_parser.add_argument("--origin-date", type=date.fromisoformat)
+    predict_parser.add_argument("--horizon-days", type=int, default=28)
     activate_parser = sub.add_parser("activate", help="promote or roll back a model version")
     activate_parser.add_argument("version")
     activate_parser.add_argument("--requested-by", default="cli")
