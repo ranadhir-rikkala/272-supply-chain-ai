@@ -13,6 +13,7 @@ from forecast_fixtures import FAST_PARAMS, ensure_dimensions, synthetic_panel
 
 from pipeline.forecast.artifacts import save_artifacts
 from pipeline.forecast.features import SeriesHistory
+from pipeline.forecast.jobs import JobTopology, RabbitJobPublisher
 from pipeline.forecast.model import train
 from pipeline.forecast.registry import GateDecision, TrainingWindows, activate_model, register_model
 from pipeline.forecast.runs import create_run
@@ -79,7 +80,7 @@ def _free_port() -> int:
 
 
 @contextmanager
-def _worker_process(database_url: str, amqp_url: str, store_root):
+def _worker_process(database_url: str, amqp_url: str, store_root, topology: JobTopology):
     env = {
         **os.environ,
         "DATABASE_URL": database_url,
@@ -87,6 +88,8 @@ def _worker_process(database_url: str, amqp_url: str, store_root):
         "LOCAL_STORE_ROOT": str(store_root),
         "STORE": "local",
         "METRICS_PORT": str(_free_port()),
+        "FORECAST_JOBS_EXCHANGE": topology.exchange,
+        "FORECAST_JOBS_QUEUE": topology.queue,
     }
     process = subprocess.Popen(
         [sys.executable, "-c", "from pipeline.forecast.cli import main; main(['worker'])"],
@@ -115,10 +118,38 @@ def _wait_for_status(connection, run_id, statuses, timeout_seconds=60) -> str:
     return status
 
 
-def _publish(amqp_url: str, message: dict) -> None:
-    from pipeline.forecast.jobs import RabbitJobPublisher
+def _publish(amqp_url: str, topology: JobTopology, message: dict) -> None:
+    RabbitJobPublisher(amqp_url, topology=topology).publish(message, "worker-test")
 
-    RabbitJobPublisher(amqp_url).publish(message, "worker-test")
+
+@pytest.fixture
+def isolated_topology():
+    amqp_url = os.getenv("TEST_AMQP_URL")
+    if not amqp_url:
+        pytest.skip("TEST_AMQP_URL is not configured")
+    import pika
+
+    suffix = uuid.uuid4().hex[:12]
+    topology = JobTopology(exchange=f"ml.test.{suffix}", queue=f"forecast.jobs.test.{suffix}")
+    yield topology
+    connection = pika.BlockingConnection(pika.URLParameters(amqp_url))
+    try:
+        channel = connection.channel()
+        for queue in (topology.queue, topology.retry_queue, topology.dead_letter_queue):
+            channel.queue_delete(queue=queue)
+        channel.exchange_delete(exchange=topology.exchange)
+    finally:
+        connection.close()
+
+
+def _queue_depth(amqp_url: str, queue: str) -> int:
+    import pika
+
+    connection = pika.BlockingConnection(pika.URLParameters(amqp_url))
+    try:
+        return connection.channel().queue_declare(queue=queue, passive=True).method.message_count
+    finally:
+        connection.close()
 
 
 @pytest.fixture
@@ -184,11 +215,17 @@ def services(tmp_path):
 
 
 @pytest.mark.integration
-def test_worker_runs_a_queued_forecast(services):
+def test_worker_runs_a_queued_forecast(services, isolated_topology):
     connection = services["connection"]
     run = create_run(connection, "pat", origin_date=date(2024, 2, 24), horizon_days=7)
-    with _worker_process(services["database_url"], services["amqp_url"], services["store_root"]):
-        _publish(services["amqp_url"], {"job_type": "forecast", "run_id": str(run["run_id"])})
+    with _worker_process(
+        services["database_url"], services["amqp_url"], services["store_root"], isolated_topology
+    ):
+        _publish(
+            services["amqp_url"],
+            isolated_topology,
+            {"job_type": "forecast", "run_id": str(run["run_id"])},
+        )
         status = _wait_for_status(connection, run["run_id"], {"SUCCEEDED", "FAILED"})
     assert status == "SUCCEEDED"
     panel = services["panel"]
@@ -203,11 +240,17 @@ def test_worker_runs_a_queued_forecast(services):
 
 
 @pytest.mark.integration
-def test_failing_forecast_is_dead_lettered_and_marked_failed(services):
+def test_failing_forecast_is_dead_lettered_and_marked_failed(services, isolated_topology):
     connection = services["connection"]
     run = create_run(connection, "pat", origin_date=date(2023, 3, 1), horizon_days=7)
-    with _worker_process(services["database_url"], services["amqp_url"], services["store_root"]):
-        _publish(services["amqp_url"], {"job_type": "forecast", "run_id": str(run["run_id"])})
+    with _worker_process(
+        services["database_url"], services["amqp_url"], services["store_root"], isolated_topology
+    ):
+        _publish(
+            services["amqp_url"],
+            isolated_topology,
+            {"job_type": "forecast", "run_id": str(run["run_id"])},
+        )
         status = _wait_for_status(connection, run["run_id"], {"FAILED", "SUCCEEDED"})
     assert status == "FAILED"
     error = connection.execute(
@@ -215,3 +258,4 @@ def test_failing_forecast_is_dead_lettered_and_marked_failed(services):
     ).fetchone()[0]
     assert error.startswith("dead-lettered: WORKER:")
     assert json.dumps(error)
+    assert _queue_depth(services["amqp_url"], isolated_topology.dead_letter_queue) == 1

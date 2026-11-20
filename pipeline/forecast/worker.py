@@ -8,7 +8,7 @@ from collections.abc import Callable
 
 from prometheus_client import Counter, Histogram
 
-from pipeline.forecast.jobs import EXCHANGE, FORECAST_JOB, QUEUE, ROUTING_KEY, TRAINING_JOB
+from pipeline.forecast.jobs import FORECAST_JOB, TRAINING_JOB, JobTopology
 
 logger = logging.getLogger(__name__)
 
@@ -87,13 +87,17 @@ def handle_dead_letter(message: dict | None, reason: str, connect: Callable = _c
 def run_worker() -> None:
     from pipeline.messaging import FeedConsumer
 
+    topology = JobTopology.from_env()
     consumer = FeedConsumer(
         handle_job,
-        exchange=EXCHANGE,
-        queue=QUEUE,
-        routing_key=ROUTING_KEY,
+        exchange=topology.exchange,
+        queue=topology.queue,
+        routing_key=topology.routing_key,
         required_field="job_type",
         on_dead_letter=handle_dead_letter,
     )
-    logger.info("forecast worker consuming", extra={"queue": QUEUE})
+    logger.info(
+        "forecast worker consuming",
+        extra={"exchange": topology.exchange, "queue": topology.queue},
+    )
     consumer.run()
