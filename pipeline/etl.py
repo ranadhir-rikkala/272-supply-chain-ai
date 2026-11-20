@@ -365,6 +365,10 @@ def load_master(
                 archive = root_path / "raw/archive" / key.removeprefix("raw/")
                 archive.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(path, archive)
+            if db:
+                # Keep each file atomic and durable. A later bad file must not
+                # roll back successfully loaded files from the same run.
+                db.commit()
             with processed_path.open("a") as handle:
                 handle.write(
                     json.dumps(
