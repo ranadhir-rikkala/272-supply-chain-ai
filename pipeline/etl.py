@@ -212,6 +212,7 @@ def _load_with_copy(db, kind: str, rows: list[dict], run_id: str) -> None:
         target, temp = "core.fact_receipt", "tmp_receipt"
         types = "receipt_id text, po_id text, receipt_date date, quantity int, warehouse_id text, etl_run_id uuid"
     with db.cursor() as cur:
+        cur.execute(f"DROP TABLE IF EXISTS {temp}")
         cur.execute(f"CREATE TEMP TABLE {temp} ({types}) ON COMMIT DROP")
         with cur.copy(f"COPY {temp} ({','.join(columns)}) FROM STDIN") as copy:
             for value in values:
@@ -348,6 +349,8 @@ def load_master(
                 results["skipped"] += 1
                 continue
             good, bad_rows, _ = _load_one(path, root_path, manifest, known, run_id, db)
+            if db:
+                db.commit()
             results["files"] += 1
             results["good_rows"] += good
             results["bad_rows"] += len(bad_rows)
