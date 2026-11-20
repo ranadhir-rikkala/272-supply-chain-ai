@@ -49,7 +49,20 @@ def _serve(args) -> dict:
     return {"status": "stopped"}
 
 
-COMMANDS = {"train": _train, "activate": _activate, "predict": _predict, "serve": _serve}
+def _worker(args) -> dict:
+    from pipeline.forecast.worker import run_worker
+
+    run_worker()
+    return {"status": "stopped"}
+
+
+COMMANDS = {
+    "train": _train,
+    "activate": _activate,
+    "predict": _predict,
+    "serve": _serve,
+    "worker": _worker,
+}
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -62,6 +75,7 @@ def build_parser() -> argparse.ArgumentParser:
     predict_parser.add_argument("--requested-by", default="cli")
     predict_parser.add_argument("--origin-date", type=date.fromisoformat)
     predict_parser.add_argument("--horizon-days", type=int, default=28)
+    sub.add_parser("worker", help="consume forecast and training jobs from RabbitMQ")
     serve_parser = sub.add_parser("serve", help="run the internal forecast API")
     serve_parser.add_argument("--host", default="0.0.0.0")
     serve_parser.add_argument("--port", type=int, default=8000)
