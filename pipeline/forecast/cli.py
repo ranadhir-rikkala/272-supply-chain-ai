@@ -2,9 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
-import logging
 import os
-import sys
 from datetime import date
 
 
@@ -40,7 +38,18 @@ def _predict(args) -> dict:
         return execute_run(connection, default_store(), run["run_id"])
 
 
-COMMANDS = {"train": _train, "activate": _activate, "predict": _predict}
+def _serve(args) -> dict:
+    import uvicorn
+
+    from pipeline.forecast.api import create_app
+    from pipeline.forecast.observability import configure_logging
+
+    configure_logging()
+    uvicorn.run(create_app(), host=args.host, port=args.port, log_config=None, access_log=False)
+    return {"status": "stopped"}
+
+
+COMMANDS = {"train": _train, "activate": _activate, "predict": _predict, "serve": _serve}
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -53,6 +62,9 @@ def build_parser() -> argparse.ArgumentParser:
     predict_parser.add_argument("--requested-by", default="cli")
     predict_parser.add_argument("--origin-date", type=date.fromisoformat)
     predict_parser.add_argument("--horizon-days", type=int, default=28)
+    serve_parser = sub.add_parser("serve", help="run the internal forecast API")
+    serve_parser.add_argument("--host", default="0.0.0.0")
+    serve_parser.add_argument("--port", type=int, default=8000)
     activate_parser = sub.add_parser("activate", help="promote or roll back a model version")
     activate_parser.add_argument("version")
     activate_parser.add_argument("--requested-by", default="cli")
@@ -61,6 +73,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> None:
-    logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), stream=sys.stderr)
+    from pipeline.forecast.observability import configure_logging
+
+    configure_logging()
     args = build_parser().parse_args(argv)
     print(json.dumps(COMMANDS[args.command](args), default=str))
