@@ -15,6 +15,7 @@ forecast = ["xgboost>=2.1"]
 [project.scripts]
 scgen = "pipeline.generator:main"
 scetl = "pipeline.etl:main"
+scforecast = "pipeline.forecast.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["pipeline*"]
