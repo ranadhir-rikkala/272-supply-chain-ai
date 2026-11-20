@@ -120,6 +120,7 @@ def _load_with_copy(db, kind: str, rows: list[dict], run_id: str) -> None:
             "warehouse_id",
             "units_sold",
             "unit_price",
+            "promo_flag",
             "etl_run_id",
         ]
         values = [
@@ -130,12 +131,13 @@ def _load_with_copy(db, kind: str, rows: list[dict], run_id: str) -> None:
                 r["warehouse_id"],
                 int(r["units_sold"]),
                 r["unit_price"],
+                int(r["promotion"]) == 1,
                 run_id,
             )
             for r in rows
         ]
         target, temp = "core.fact_sales_daily", "tmp_sales_daily"
-        types = "feed_date date, sale_id text, sku text, warehouse_id text, units_sold int, unit_price numeric, etl_run_id uuid"
+        types = "feed_date date, sale_id text, sku text, warehouse_id text, units_sold int, unit_price numeric, promo_flag boolean, etl_run_id uuid"
     elif kind == "inventory":
         columns = [
             "feed_date",
