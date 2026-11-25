@@ -87,3 +87,43 @@ def test_promotions_lower_the_price(sixty_days: Path):
     promoted = [row for row in _rows(sixty_days, "sales") if row["promotion"] == "1" and row["sku"]]
     assert promoted
     assert all(float(row["unit_price"]) < products[row["sku"]] for row in promoted)
+
+
+def _po_events(root: Path) -> tuple[dict[str, dict], list[dict]]:
+    created, updated = {}, []
+    for row in _rows(root, "po_events"):
+        if row["event_type"] == "CREATED":
+            created[row["po_id"]] = row
+        elif row["event_type"] == "ETA_UPDATED":
+            updated.append(row)
+    return created, updated
+
+
+def test_eta_update_moves_the_eta_later_than_created(sixty_days: Path):
+    created, updated = _po_events(sixty_days)
+    assert updated
+    for row in updated:
+        original = created[row["po_id"]]
+        assert row["eta"] > original["eta"], row["po_id"]
+        assert row["event_time"][:10] > original["event_time"][:10]
+
+
+def test_disrupted_orders_are_received_on_the_updated_eta(sixty_days: Path):
+    _, updated = _po_events(sixty_days)
+    latest_eta = {}
+    for row in updated:
+        latest_eta[row["po_id"]] = max(latest_eta.get(row["po_id"], ""), row["eta"])
+    receipts = {row["po_id"]: row for row in _rows(sixty_days, "receipts")}
+    received = [po for po in latest_eta if po in receipts]
+    assert received
+    assert all(receipts[po]["receipt_date"] == latest_eta[po] for po in received)
+
+
+def test_purchase_order_supplier_is_the_product_catalog_supplier(sixty_days: Path):
+    catalog_supplier = {
+        row["sku"]: row["supplier_id"]
+        for row in csv.DictReader((sixty_days / "catalog/products.csv").open())
+    }
+    created, updated = _po_events(sixty_days)
+    for row in [*created.values(), *updated]:
+        assert row["supplier_id"] == catalog_supplier[row["sku"]], row["po_id"]
