@@ -84,7 +84,9 @@ def test_promotions_lower_the_price(sixty_days: Path):
         row["sku"]: float(row["unit_price"])
         for row in csv.DictReader((sixty_days / "catalog/products.csv").open())
     }
-    promoted = [row for row in _rows(sixty_days, "sales") if row["promo_flag"] == "1" and row["sku"]]
+    promoted = [
+        row for row in _rows(sixty_days, "sales") if row["promo_flag"] == "1" and row["sku"]
+    ]
     assert promoted
     assert all(float(row["unit_price"]) < products[row["sku"]] for row in promoted)
 

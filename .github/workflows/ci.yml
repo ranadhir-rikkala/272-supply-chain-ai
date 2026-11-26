@@ -111,6 +111,21 @@ jobs:
     name: Platform API build and tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: supplychain_test
+          POSTGRES_USER: supplychain
+          POSTGRES_PASSWORD: supplychain
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U supplychain -d supplychain_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      PLATFORM_TEST_DATABASE_URL: jdbc:postgresql://localhost:5432/supplychain_test
+      PLATFORM_TEST_DATABASE_USERNAME: supplychain
+      PLATFORM_TEST_DATABASE_PASSWORD: supplychain
     steps:
       - uses: actions/checkout@v4
       - name: Check for the platform API
@@ -128,7 +143,7 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: maven
-      - name: Build and test with Testcontainers
+      - name: Build and test with PostgreSQL
         if: steps.present.outputs.found == 'true'
         working-directory: services/platform-api
         run: |
