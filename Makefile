@@ -7,7 +7,7 @@ SCETL = $(VENV)/bin/python -m pipeline.etl
 
 venv:
 	$(PYTHON) -m venv $(VENV)
-	$(PIP) install -e '.[dev]'
+	$(PIP) install -e '.[dev,forecast,service]'
 
 up:
 	docker compose up -d postgres rabbitmq flyway && docker compose up -d --scale etl-worker=2 etl-worker
