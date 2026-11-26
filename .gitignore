@@ -8,3 +8,7 @@ __pycache__/
 data/
 *.egg-info/
 .DS_Store
+.env.*
+!.env.example
+dashboard/test-results/
+dashboard/playwright-report/
