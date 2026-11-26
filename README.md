@@ -98,3 +98,34 @@ The test database needs the migrations once: `docker compose run --rm -e FLYWAY_
 - **KEV and Trivy security scan.** CI fails when a Python dependency appears on the CISA Known Exploited Vulnerabilities list, on critical npm advisories, on committed secrets, and on critical image vulnerabilities that have a fix.
 - **Grafana dashboards.** Prometheus and a read-only Postgres datasource, provisioned from files, with the dashboard served under `/grafana`.
 - **Resilience.** If Postgres stops, the API answers 503 with `Retry-After` instead of 500, and recovers by itself when the database is back.
+
+## Platform API and identity
+
+The P4 service is Java 21 / Spring Boot 4 in `services/platform-api`. It is a stateless OAuth2 resource server; Keycloak imports the `supplychain` realm under `/auth`, with `VIEWER`, `PLANNER`, `SUPPLY_MANAGER` and `ADMIN` roles. The dashboard client uses PKCE S256 and tokens include the `platform-api` audience. Demo users and the confidential `smoke-test` client are provisioned from environment variables at Keycloak startup.
+
+Set `API_DB_PASSWORD`, `KEYCLOAK_DB_PASSWORD`, `KEYCLOAK_ADMIN_PASSWORD`, `DEMO_USER_PASSWORD` (at least 12 characters with an uppercase letter and a digit), `SMOKE_CLIENT_SECRET`, and `FORECAST_SERVICE_TOKEN` in the local `.env`, then run:
+
+```bash
+docker compose up -d --build platform-api keycloak
+curl -i https://localhost/api/v1/me
+bash scripts/token.sh
+```
+
+The API is served behind Caddy at `/api/v1`; Keycloak is at `https://localhost/auth`. Direct local Keycloak access is bound to `127.0.0.1:8180`. OpenAPI documentation is available at `https://localhost/swagger-ui.html`; liveness/readiness and Prometheus metrics are at `/actuator/health` and `/actuator/prometheus` inside the compose network.
+
+Implemented dashboard endpoints include `/me`, `/dashboard/summary`, `/warehouses`, `/risks`, `/series`, `/recommendations`, `/orders`, `/audit`, `/settings`, `/optimization-runs`, `/jobs`, `/quality`, `/models`, `/forecast-runs` and `/evaluation/risk-flags`. Reads require a valid dashboard token; audit is restricted to managers and admins, settings/model operations to admins, optimization/forecast runs to planners or admins, and recommendations to planners or supply managers. Admins cannot approve. Approval actions use ETags with `If-Match` and all POST requests require `Idempotency-Key`. The approval limit defaults to $10,000; larger planner approvals require a different supply manager to make the final decision. Every decision and setting change is recorded in the append-only audit log. See [ADR 0006](docs/adr/0006-platform-api-approval-and-audit.md) for the workflow and security decisions.
+
+The Platform API's Flyway migrations begin at V20. They create the `app` schema and a least-privilege `platform_api` role; the database password is passed to Flyway as a placeholder. Keycloak runs against its own `keycloak-db` volume.
+
+Run the API unit and PostgreSQL/Testcontainers integration tests from the repository root with Docker available:
+
+```bash
+docker run --rm \
+  -v "$PWD":/workspace \
+  -v "$HOME/.m2":/root/.m2 \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -w /workspace/services/platform-api \
+  maven:3.9.9-eclipse-temurin-21 mvn test
+```
+
+If Testcontainers cannot reach Docker, the integration tests can use an empty disposable PostgreSQL database by setting `PLATFORM_TEST_DATABASE_URL`, `PLATFORM_TEST_DATABASE_USERNAME` and `PLATFORM_TEST_DATABASE_PASSWORD`; the test suite applies the Flyway migrations to that database.
