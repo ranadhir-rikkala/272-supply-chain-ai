@@ -1,0 +1,82 @@
+{
+  "realm": "supplychain",
+  "enabled": true,
+  "displayName": "Supply Chain",
+  "sslRequired": "external",
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "maxFailureWaitSeconds": 900,
+  "minimumQuickLoginWaitSeconds": 60,
+  "waitIncrementSeconds": 60,
+  "failureFactor": 5,
+  "passwordPolicy": "length(12) and digits(1) and upperCase(1)",
+  "roles": {
+    "realm": [
+      { "name": "VIEWER", "description": "Read supply chain dashboards" },
+      { "name": "PLANNER", "description": "Plan and approve in-limit recommendations" },
+      { "name": "SUPPLY_MANAGER", "description": "Approve recommendations and override quantities" },
+      { "name": "ADMIN", "description": "Manage platform settings, models and jobs" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "dashboard",
+      "name": "Supply Chain Dashboard",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["https://localhost/*", "http://localhost/*"],
+      "webOrigins": ["+"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "protocolMappers": [
+        {
+          "name": "platform-api audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "platform-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "platform-api",
+      "name": "Platform API",
+      "enabled": true,
+      "bearerOnly": true,
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false
+    },
+    {
+      "clientId": "smoke-test",
+      "name": "Local smoke test client",
+      "enabled": true,
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "protocolMappers": [
+        {
+          "name": "platform-api audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "platform-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": []
+}

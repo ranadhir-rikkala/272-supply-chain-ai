@@ -1,0 +1,49 @@
+server:
+  port: 8080
+  forward-headers-strategy: framework
+spring:
+  application:
+    name: platform-api
+  datasource:
+    url: ${PLATFORM_DATABASE_URL:jdbc:postgresql://postgres:5432/${POSTGRES_DB:supplychain}}
+    username: ${PLATFORM_DATABASE_USER:platform_api}
+    password: ${API_DB_PASSWORD:}
+    hikari:
+      connection-timeout: 3000
+      validation-timeout: 2000
+      keepalive-time: 30000
+      maximum-pool-size: 12
+      minimum-idle: 1
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  metrics:
+    tags:
+      application: platform-api
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+platform:
+  security:
+    issuer-uri: ${PUBLIC_URL:https://localhost}/auth/realms/supplychain
+    jwk-set-uri: ${KEYCLOAK_INTERNAL_URL:http://keycloak:8080/auth}/realms/supplychain/protocol/openid-connect/certs
+  forecast:
+    base-url: ${FORECAST_API_URL:http://forecast-api:8000}
+    service-token: ${FORECAST_SERVICE_TOKEN:}
+    connect-timeout: 2s
+    read-timeout: 5s
+  risk:
+    default-safety-days: 7
+    default-overstock-days: 90
+    default-service-level-z: 1.65
+logging:
+  level:
+    root: INFO
+    com.supplychain.platform: INFO

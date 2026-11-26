@@ -21,6 +21,18 @@
 		reverse_proxy platform-api:8080
 	}
 
+	handle /swagger-ui.html {
+		reverse_proxy platform-api:8080
+	}
+
+	handle /swagger-ui/* {
+		reverse_proxy platform-api:8080
+	}
+
+	handle /v3/api-docs* {
+		reverse_proxy platform-api:8080
+	}
+
 	handle /auth/* {
 		reverse_proxy keycloak:8080
 	}
