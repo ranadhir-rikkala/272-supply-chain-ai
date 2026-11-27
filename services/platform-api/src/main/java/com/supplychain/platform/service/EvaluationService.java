@@ -171,9 +171,7 @@ public class EvaluationService {
                     !day.isAfter(lastDetectionDate);
                     day = day.plusDays(1)) {
                 RiskEngine.Assessment assessment = assessAt(cell.sku(), cell.warehouseId(), day, safetyDays);
-                if (!"LOW".equals(assessment.riskLevel())
-                        && assessment.projectedStockoutDate() != null
-                        && !assessment.projectedStockoutDate().isAfter(lastDetectionDate)) {
+                if (warnsBefore(assessment, cell.firstStockout())) {
                     firstDetection = day;
                     break;
                 }
@@ -192,6 +190,17 @@ public class EvaluationService {
                     : warningDays.get(middle).doubleValue();
         }
         return new EvaluatedDisruption(disruption, cells.size(), flagged, medianLeadDays, withoutStockout);
+    }
+
+    /**
+     * A cell counts as warned when the engine raises its risk and projects a stockout no later
+     * than the one that actually happened. The caller only asks about days at least seven days
+     * before the actual stockout, so a true result means the warning came seven or more days ahead.
+     */
+    static boolean warnsBefore(RiskEngine.Assessment assessment, LocalDate actualStockout) {
+        return !"LOW".equals(assessment.riskLevel())
+                && assessment.projectedStockoutDate() != null
+                && !assessment.projectedStockoutDate().isAfter(actualStockout);
     }
 
     private RiskEngine.Assessment assessAt(String sku, String warehouseId, LocalDate day, int safetyDays) {
@@ -230,11 +239,17 @@ public class EvaluationService {
                 .query((rs, row) -> new double[] {rs.getDouble("mean"), rs.getDouble("deviation")})
                 .single();
         List<RiskEngine.Arrival> arrivals = jdbc.sql("""
-                WITH known_events AS (
-                    SELECT DISTINCT ON (po_id) po_id, event_type, eta, quantity
+                WITH cell_orders AS (
+                    SELECT DISTINCT po_id
                     FROM core.fact_po_event
-                    WHERE event_time::date <= :day AND event_type IN ('CREATED', 'ETA_UPDATED', 'CANCELLED')
-                    ORDER BY po_id, (event_type = 'ETA_UPDATED') DESC, event_time DESC, event_id DESC
+                    WHERE sku = :sku AND warehouse_id = :warehouseId AND event_time::date <= :day
+                ),
+                known_events AS (
+                    SELECT DISTINCT ON (e.po_id) e.po_id, e.event_type, e.eta, e.quantity
+                    FROM core.fact_po_event e
+                    JOIN cell_orders c ON c.po_id = e.po_id
+                    WHERE e.event_time::date <= :day AND e.event_type IN ('CREATED', 'ETA_UPDATED', 'CANCELLED')
+                    ORDER BY e.po_id, (e.event_type = 'ETA_UPDATED') DESC, e.event_time DESC, e.event_id DESC
                 )
                 SELECT e.eta, e.quantity
                 FROM known_events e
@@ -242,11 +257,6 @@ public class EvaluationService {
                   AND NOT EXISTS (
                     SELECT 1 FROM core.fact_receipt r
                     WHERE r.po_id = e.po_id AND r.receipt_date <= :day)
-                  AND EXISTS (
-                    SELECT 1 FROM core.fact_po_event original
-                    WHERE original.po_id = e.po_id AND original.sku = :sku
-                      AND original.warehouse_id = :warehouseId
-                      AND original.event_time::date <= :day)
                 """)
                 .param("day", day)
                 .param("sku", sku)

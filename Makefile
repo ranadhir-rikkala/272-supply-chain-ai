@@ -20,6 +20,7 @@ generate:
 
 load:
 	$(SCETL) load-master --root $${DATA_ROOT:-data}
+	$(SCETL) load-eval --root $${DATA_ROOT:-data}
 
 test:
 	$(VENV)/bin/pytest -q

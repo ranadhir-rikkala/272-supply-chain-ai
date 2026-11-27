@@ -1,7 +1,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { CATEGORIES, WAREHOUSE_IDS, categoryName } from "../api/catalog";
+import { CATEGORIES, categoryName } from "../api/catalog";
 import { api } from "../api/endpoints";
 import { fmt } from "../api/format";
 import type { RiskLevel } from "../api/types";
@@ -9,6 +9,7 @@ import { PageHead } from "../components/PageHead";
 import { Pager } from "../components/Pager";
 import { RiskChip } from "../components/RiskChip";
 import { Empty, ErrorState, Loading } from "../components/States";
+import { WarehouseSelect } from "../components/WarehouseSelect";
 import { useDebounced } from "../hooks";
 import { RiskDrawer } from "./RiskDrawer";
 
@@ -65,14 +66,7 @@ export function Risks() {
         </label>
         <label className="field">
           <span>Warehouse</span>
-          <select id="filter-warehouse" className="input" value={warehouseId} onChange={(e) => update({ warehouseId: e.target.value, page: null })}>
-            <option value="">All warehouses</option>
-            {WAREHOUSE_IDS.map((id) => (
-              <option key={id} value={id}>
-                {id}
-              </option>
-            ))}
-          </select>
+          <WarehouseSelect id="filter-warehouse" value={warehouseId} onChange={(id) => update({ warehouseId: id, page: null })} />
         </label>
         <label className="field">
           <span>Category</span>

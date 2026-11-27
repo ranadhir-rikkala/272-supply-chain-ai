@@ -1,6 +1,5 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { WAREHOUSE_IDS } from "../api/catalog";
 import { api } from "../api/endpoints";
 import { fmt } from "../api/format";
 import type { RecommendationKind } from "../api/types";
@@ -8,6 +7,7 @@ import { useSession } from "../auth/session";
 import { PageHead } from "../components/PageHead";
 import { Pager } from "../components/Pager";
 import { Empty, ErrorState, Loading } from "../components/States";
+import { WarehouseSelect } from "../components/WarehouseSelect";
 import { RecommendationCard } from "./RecommendationCard";
 
 const SIZE = 20;
@@ -78,14 +78,7 @@ export function Approvals() {
         </label>
         <label className="field">
           <span>Warehouse</span>
-          <select id="filter-approval-warehouse" className="input" value={warehouseId} onChange={(e) => update({ warehouseId: e.target.value, page: null })}>
-            <option value="">All warehouses</option>
-            {WAREHOUSE_IDS.map((id) => (
-              <option key={id} value={id}>
-                {id}
-              </option>
-            ))}
-          </select>
+          <WarehouseSelect id="filter-approval-warehouse" value={warehouseId} onChange={(id) => update({ warehouseId: id, page: null })} />
         </label>
       </div>
       {recs.isLoading && <Loading />}

@@ -138,12 +138,18 @@ public class PlatformReadService {
                     FROM app.risk_assessment a JOIN latest l ON l.run_id = a.run_id
                     GROUP BY a.warehouse_id
                 ),
-                transfers AS (
-                    SELECT warehouse_id, source_warehouse_id,
-                        count(*) AS quantity
+                open_transfers AS (
+                    SELECT warehouse_id, source_warehouse_id
                     FROM app.recommendation
                     WHERE kind = 'TRANSFER' AND status IN ('PENDING_REVIEW', 'PENDING_MANAGER')
-                    GROUP BY warehouse_id, source_warehouse_id
+                ),
+                inbound AS (
+                    SELECT warehouse_id, count(*) AS quantity
+                    FROM open_transfers GROUP BY warehouse_id
+                ),
+                outbound AS (
+                    SELECT source_warehouse_id AS warehouse_id, count(*) AS quantity
+                    FROM open_transfers GROUP BY source_warehouse_id
                 )
                 SELECT w.warehouse_id AS "warehouseId", w.warehouse_name AS name, w.city,
                     '' AS state, w.latitude, w.longitude,
@@ -153,8 +159,8 @@ public class PlatformReadService {
                     COALESCE(outbound.quantity, 0) AS "pendingOutbound"
                 FROM core.dim_warehouse w
                 LEFT JOIN risks r ON r.warehouse_id = w.warehouse_id
-                LEFT JOIN transfers inbound ON inbound.warehouse_id = w.warehouse_id
-                LEFT JOIN transfers outbound ON outbound.source_warehouse_id = w.warehouse_id
+                LEFT JOIN inbound ON inbound.warehouse_id = w.warehouse_id
+                LEFT JOIN outbound ON outbound.warehouse_id = w.warehouse_id
                 ORDER BY w.warehouse_id
                 """)
                 .query((rs, row) -> {

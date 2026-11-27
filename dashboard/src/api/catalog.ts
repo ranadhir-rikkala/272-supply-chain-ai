@@ -13,8 +13,6 @@ export const CATEGORIES: { code: string; name: string }[] = [
   { code: "SCH", name: "School & Office" },
 ];
 
-export const WAREHOUSE_IDS = ["WH-ATL", "WH-CHI", "WH-DFW", "WH-EWR", "WH-LAX", "WH-MSP", "WH-PHX", "WH-SEA"];
-
 export function categoryName(code: string): string {
   return CATEGORIES.find((c) => c.code === code)?.name ?? code;
 }
