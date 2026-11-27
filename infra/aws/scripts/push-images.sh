@@ -4,6 +4,7 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/../../.."
+source infra/aws/scripts/_env.sh
 TF=infra/aws/terraform
 TAG=${IMAGE_TAG:-latest}
 

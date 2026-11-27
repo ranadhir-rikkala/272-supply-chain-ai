@@ -5,6 +5,7 @@ set -euo pipefail
 
 job=${1:?usage: run-task.sh db-init|migrate|load-data|train}
 cd "$(dirname "$0")/../../.."
+source infra/aws/scripts/_env.sh
 TF=infra/aws/terraform
 
 region=$(terraform -chdir="$TF" output -raw region)

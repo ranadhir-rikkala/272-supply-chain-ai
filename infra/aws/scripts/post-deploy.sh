@@ -5,6 +5,7 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/../../.."
+source infra/aws/scripts/_env.sh
 TF=infra/aws/terraform
 region=$(terraform -chdir="$TF" output -raw region)
 url=$(terraform -chdir="$TF" output -raw public_url)
