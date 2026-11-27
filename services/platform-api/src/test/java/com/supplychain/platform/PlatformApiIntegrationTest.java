@@ -325,6 +325,52 @@ class PlatformApiIntegrationTest {
         assertThrows(DataAccessException.class, () -> jdbc.update("DELETE FROM app.audit_log"));
     }
 
+    @Test
+    void warehousesReturnsOneRowPerWarehouseWithTransferCounts() throws Exception {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        String hub = "WH-HUB-" + suffix;
+        String east = "WH-EAST-" + suffix;
+        String west = "WH-WEST-" + suffix;
+        for (String id : new String[] {hub, east, west}) {
+            jdbc.update("""
+                    INSERT INTO core.dim_warehouse
+                        (warehouse_id, warehouse_name, city, latitude, longitude, climate_scale)
+                    VALUES (?, 'Test Warehouse', 'Test City', 40, -74, 1)
+                    """, id);
+        }
+        UUID runId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO app.optimization_run
+                    (run_id, as_of_date, model_version, status, requested_by)
+                VALUES (?, '2025-12-31', 'model-test', 'SUCCEEDED', 'test')
+                """, runId);
+        createTransfer(runId, east, hub);
+        createTransfer(runId, west, hub);
+        createTransfer(runId, hub, east);
+
+        String body = mockMvc.perform(get("/api/v1/warehouses")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_VIEWER"))))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        var rows = com.jayway.jsonpath.JsonPath.<java.util.List<Map<String, Object>>>read(
+                body, "$[?(@.warehouseId == '" + hub + "')]");
+
+        org.junit.jupiter.api.Assertions.assertEquals(1, rows.size());
+        org.junit.jupiter.api.Assertions.assertEquals(2, ((Number) rows.get(0).get("pendingInbound")).intValue());
+        org.junit.jupiter.api.Assertions.assertEquals(1, ((Number) rows.get(0).get("pendingOutbound")).intValue());
+    }
+
+    private void createTransfer(UUID runId, String source, String destination) {
+        jdbc.update("""
+                INSERT INTO app.recommendation
+                    (recommendation_id, run_id, kind, sku, warehouse_id, source_warehouse_id,
+                     quantity, unit_cost, freight_cost, distance_miles, lead_days,
+                     expected_arrival, risk_level, reason, status, version)
+                VALUES (?, ?, 'TRANSFER', 'TEST-0001', ?, ?,
+                        5, 10, 50, 100, 2, '2026-01-02', 'HIGH', 'Test transfer', 'PENDING_REVIEW', 1)
+                """, UUID.randomUUID(), runId, destination, source);
+    }
+
     private UUID createRecommendation(int quantity, String status, String endorsedBy) {
         UUID runId = UUID.randomUUID();
         UUID recommendationId = UUID.randomUUID();
