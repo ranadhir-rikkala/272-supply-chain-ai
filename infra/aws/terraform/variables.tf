@@ -4,6 +4,12 @@ variable "region" {
   default     = "us-east-2"
 }
 
+variable "allowed_account_ids" {
+  description = "AWS accounts Terraform may change. Set it so a sign-in to another account fails instead of creating a second stack there."
+  type        = list(string)
+  default     = []
+}
+
 variable "project" {
   description = "Name prefix for resources."
   type        = string
