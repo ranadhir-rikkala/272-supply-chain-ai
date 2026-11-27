@@ -473,6 +473,34 @@ def enqueue(root: str) -> dict:
     return {"status": "queued", "messages": count}
 
 
+def etl_status(root: str) -> dict:
+    root_path = Path(root)
+    with (root_path / "raw/manifest.csv").open(newline="") as handle:
+        manifest = list(csv.DictReader(handle))
+    marker_path = root_path / ".etl_file.jsonl"
+    processed = set()
+    if marker_path.exists():
+        with marker_path.open() as marker_file:
+            processed = {
+                (record["file_key"], record["sha256"])
+                for record in (json.loads(line) for line in marker_file)
+            }
+    pending = [row for row in manifest if (row["file_key"], row["sha256"]) not in processed]
+    quarantine_path = root_path / "quarantine/rows.jsonl"
+    quarantined_rows = 0
+    if quarantine_path.exists():
+        with quarantine_path.open() as handle:
+            quarantined_rows = sum(1 for _ in handle)
+    return {
+        "status": "ready",
+        "root": str(root_path),
+        "files": len(manifest),
+        "processed_files": len(processed),
+        "pending_files": len(pending),
+        "quarantined_rows": quarantined_rows,
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Validate, quarantine, and load ERP feeds")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -487,7 +515,8 @@ def main() -> None:
     eval_parser.add_argument("--root", default="data")
     enqueue_parser = sub.add_parser("enqueue")
     enqueue_parser.add_argument("--root", default="data")
-    sub.add_parser("status")
+    status_parser = sub.add_parser("status")
+    status_parser.add_argument("--root", default="data")
     worker_parser = sub.add_parser("worker")
     worker_parser.add_argument("--root", default="data")
     args = parser.parse_args()
@@ -506,7 +535,7 @@ def main() -> None:
     elif args.command == "load-eval":
         print(json.dumps(load_eval(args.root)))
     elif args.command == "status":
-        print(json.dumps({"status": "ready"}))
+        print(json.dumps(etl_status(args.root)))
     elif args.command == "enqueue":
         print(json.dumps(enqueue(args.root)))
     else:

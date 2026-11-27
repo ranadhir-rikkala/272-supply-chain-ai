@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from pipeline.etl import _known_catalog, check_file, load_eval, load_master
+from pipeline.etl import _known_catalog, check_file, etl_status, load_eval, load_master
 from pipeline.generator import generate
 from pipeline.validation import SPECS, feed_type, validate
 
@@ -77,6 +77,20 @@ def test_rerun_is_idempotent_and_tamper_is_quarantined(tmp_path: Path):
     result = load_master(tampered)
     assert result["bad_rows"] > 0
     assert "FILE_CHECKSUM_MISMATCH" in (tampered / "quarantine/rows.jsonl").read_text()
+
+
+def test_status_reports_pending_and_processed_files(tmp_path: Path):
+    generate(tmp_path, date(2023, 1, 1), date(2023, 1, 1))
+    before = etl_status(tmp_path)
+    assert before["files"] == 4
+    assert before["processed_files"] == 0
+    assert before["pending_files"] == 4
+
+    load_master(tmp_path)
+    after = etl_status(tmp_path)
+    assert after["processed_files"] == 4
+    assert after["pending_files"] == 0
+    assert after["quarantined_rows"] > 0
 
 
 @pytest.mark.integration
