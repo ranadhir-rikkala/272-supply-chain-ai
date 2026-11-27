@@ -80,8 +80,8 @@ Running, the stack costs roughly $8 to $10 a day (Fargate about $5, RDS about $1
 
 | To | Run | Leaves running |
 |---|---|---|
-| Pause overnight | `terraform -chdir=infra/aws/terraform apply -var services_enabled=false` | RDS, load balancer, CloudFront (about $2.50 a day) |
-| Resume | `terraform -chdir=infra/aws/terraform apply -var services_enabled=true` | |
+| Pause overnight | `infra/aws/scripts/pause.sh` | RDS, load balancer, CloudFront (about $2.50 a day) |
+| Resume (about 5 minutes) | `infra/aws/scripts/resume.sh` | |
 | Delete everything | `infra/aws/scripts/destroy.sh` | Nothing; data, images and logs are deleted |
 
 ## Troubleshooting
