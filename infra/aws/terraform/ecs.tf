@@ -62,10 +62,12 @@ locals {
         PUBLIC_URL            = local.public_url
         KEYCLOAK_INTERNAL_URL = "http://keycloak:8080/auth"
         FORECAST_API_URL      = "http://forecast-api:8000"
+        RISK_ALERTS_TOPIC_ARN = aws_sns_topic.risk_alerts.arn
+        AWS_REGION            = var.region
       }
       secrets = ["API_DB_PASSWORD", "FORECAST_SERVICE_TOKEN"]
       ports   = [{ name = "platform-api", port = 8080, http = true, alias = "platform-api" }]
-      role    = aws_iam_role.task.arn
+      role    = aws_iam_role.platform_task.arn
     }
 
     keycloak = {
@@ -146,10 +148,13 @@ locals {
       memory  = 1024
       command = null
       env = {
-        GF_SERVER_ROOT_URL                        = "${local.public_url}/grafana/"
-        GF_SERVER_SERVE_FROM_SUB_PATH             = "true"
-        GF_SECURITY_ADMIN_USER                    = "admin"
-        GF_SECURITY_COOKIE_SECURE                 = "true"
+        GF_SERVER_ROOT_URL            = "${local.public_url}/grafana/"
+        GF_SERVER_SERVE_FROM_SUB_PATH = "true"
+        GF_SECURITY_ADMIN_USER        = "admin"
+        GF_SECURITY_COOKIE_SECURE     = "true"
+        # CloudFront sends the load balancer's name as Host, so Grafana's CSRF check
+        # rejects the browser's Origin ("origin not allowed") unless it is trusted.
+        GF_SECURITY_CSRF_TRUSTED_ORIGINS          = local.public_host
         GF_SECURITY_DISABLE_GRAVATAR              = "true"
         GF_USERS_ALLOW_SIGN_UP                    = "false"
         GF_AUTH_ANONYMOUS_ENABLED                 = "false"

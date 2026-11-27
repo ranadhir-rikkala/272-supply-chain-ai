@@ -27,6 +27,10 @@ management:
   metrics:
     tags:
       application: platform-api
+    # Export latency buckets so Grafana's p95 panel can use histogram_quantile.
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
@@ -39,6 +43,9 @@ platform:
     service-token: ${FORECAST_SERVICE_TOKEN:}
     connect-timeout: 2s
     read-timeout: 5s
+  alerts:
+    # Set on AWS; empty in local Compose, where alerts are only logged.
+    sns-topic-arn: ${RISK_ALERTS_TOPIC_ARN:}
   risk:
     default-safety-days: 7
     default-overstock-days: 90

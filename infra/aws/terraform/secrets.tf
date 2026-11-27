@@ -46,7 +46,7 @@ locals {
     KEYCLOAK_ADMIN_PASSWORD  = random_password.app["keycloak_admin"].result
     DEMO_USER_PASSWORD       = random_password.demo_user.result
     SMOKE_CLIENT_SECRET      = random_password.app["smoke_client"].result
-    GRAFANA_ADMIN_PASSWORD   = random_password.app["grafana_admin"].result
+    GRAFANA_ADMIN_PASSWORD   = var.grafana_admin_password != "" ? var.grafana_admin_password : random_password.app["grafana_admin"].result
     FORECAST_SERVICE_TOKEN   = random_password.app["forecast_token"].result
   }
 }
