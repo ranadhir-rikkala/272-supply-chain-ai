@@ -27,6 +27,10 @@ management:
   metrics:
     tags:
       application: platform-api
+    # Export latency buckets so Grafana's p95 panel can use histogram_quantile.
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
