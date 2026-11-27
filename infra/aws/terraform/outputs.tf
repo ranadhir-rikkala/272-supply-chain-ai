@@ -52,3 +52,8 @@ output "cloudwatch_dashboard_url" {
   description = "CloudWatch dashboard for the AWS side of the stack."
   value       = "https://${var.region}.console.aws.amazon.com/cloudwatch/home?region=${var.region}#dashboards/dashboard/${aws_cloudwatch_dashboard.main.dashboard_name}"
 }
+
+output "risk_alerts_queue_url" {
+  description = "SQS queue that receives one JSON event per high-risk item after each optimization run."
+  value       = aws_sqs_queue.risk_alerts.id
+}

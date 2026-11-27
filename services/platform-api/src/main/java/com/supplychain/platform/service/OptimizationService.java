@@ -1,6 +1,8 @@
 package com.supplychain.platform.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.supplychain.platform.alerts.RiskAlert;
+import com.supplychain.platform.alerts.RiskAlertsRaised;
 import com.supplychain.platform.api.Actor;
 import com.supplychain.platform.api.ApiException;
 import com.supplychain.platform.risk.RiskEngine;
@@ -13,6 +15,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
@@ -24,16 +27,19 @@ public class OptimizationService {
     private final JdbcTemplate jdbcTemplate;
     private final AuditService audit;
     private final ObjectMapper objectMapper;
+    private final ApplicationEventPublisher events;
 
     public OptimizationService(
             JdbcClient jdbc,
             JdbcTemplate jdbcTemplate,
             AuditService audit,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            ApplicationEventPublisher events) {
         this.jdbc = jdbc;
         this.jdbcTemplate = jdbcTemplate;
         this.audit = audit;
         this.objectMapper = objectMapper;
+        this.events = events;
     }
 
     @Transactional
@@ -142,7 +148,24 @@ public class OptimizationService {
                 .param("runId", runId)
                 .update();
         audit.record("OPTIMIZATION_RUN", "optimization_run", runId.toString(), null, summary);
+        events.publishEvent(new RiskAlertsRaised(runId, asOfDate, forecast.modelVersion(), actor, highRiskAlerts(evaluated)));
         return summary;
+    }
+
+    private static List<RiskAlert> highRiskAlerts(Map<CellKey, EvaluatedCell> evaluated) {
+        return evaluated.values().stream()
+                .filter(value -> "HIGH".equals(value.assessment().riskLevel()))
+                .map(value -> new RiskAlert(
+                        value.cell().sku(),
+                        value.cell().warehouseId(),
+                        value.cell().productName(),
+                        value.cell().category(),
+                        value.cell().onHand(),
+                        value.cell().onOrder(),
+                        value.assessment().daysOfCover(),
+                        value.assessment().projectedStockoutDate(),
+                        value.assessment().recommendedQuantity()))
+                .toList();
     }
 
     private ForecastRun latestForecast() {

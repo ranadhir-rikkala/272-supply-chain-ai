@@ -62,10 +62,12 @@ locals {
         PUBLIC_URL            = local.public_url
         KEYCLOAK_INTERNAL_URL = "http://keycloak:8080/auth"
         FORECAST_API_URL      = "http://forecast-api:8000"
+        RISK_ALERTS_TOPIC_ARN = aws_sns_topic.risk_alerts.arn
+        AWS_REGION            = var.region
       }
       secrets = ["API_DB_PASSWORD", "FORECAST_SERVICE_TOKEN"]
       ports   = [{ name = "platform-api", port = 8080, http = true, alias = "platform-api" }]
-      role    = aws_iam_role.task.arn
+      role    = aws_iam_role.platform_task.arn
     }
 
     keycloak = {

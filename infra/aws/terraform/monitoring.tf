@@ -138,7 +138,35 @@ resource "aws_cloudwatch_dashboard" "main" {
         }
       },
       {
-        type = "log", x = 0, y = 20, width = 24, height = 7
+        type = "metric", x = 0, y = 20, width = 12, height = 6
+        properties = {
+          title  = "High-risk alerts published (SNS)"
+          region = local.cw_region
+          view   = "timeSeries"
+          stat   = "Sum"
+          period = 60
+          metrics = [
+            ["AWS/SNS", "NumberOfMessagesPublished", "TopicName", aws_sns_topic.risk_alerts.name, { label = "published" }],
+            [".", "NumberOfNotificationsFailed", ".", ".", { label = "delivery failed" }],
+          ]
+        }
+      },
+      {
+        type = "metric", x = 12, y = 20, width = 12, height = 6
+        properties = {
+          title  = "High-risk alert queue (SQS)"
+          region = local.cw_region
+          view   = "timeSeries"
+          stat   = "Maximum"
+          period = 60
+          metrics = [
+            ["AWS/SQS", "ApproximateNumberOfMessagesVisible", "QueueName", aws_sqs_queue.risk_alerts.name, { label = "waiting" }],
+            [".", ".", ".", aws_sqs_queue.risk_alerts_dlq.name, { label = "dead-lettered" }],
+          ]
+        }
+      },
+      {
+        type = "log", x = 0, y = 26, width = 24, height = 7
         properties = {
           title  = "Recent errors in service logs"
           region = local.cw_region

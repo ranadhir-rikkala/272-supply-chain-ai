@@ -67,6 +67,17 @@ aws secretsmanager get-secret-value \
 
 Grafana is at `<url>/grafana/` as `admin` with `GRAFANA_ADMIN_PASSWORD` from the same secret.
 
+## Monitoring and alerts
+
+- **CloudWatch dashboard** `supplychain-ai` (`terraform output cloudwatch_dashboard_url`): ECS tasks, CPU and memory per service, load balancer requests, latency and 5xx, RDS, CloudFront, high-risk alert traffic and recent log errors. Alarms for app 5xx, RDS CPU and RDS storage email `alert_email`.
+- **Grafana** at `<url>/grafana/` keeps the application metrics CloudWatch cannot see: RabbitMQ queues, model WAPE, the circuit breaker and ETL quarantine.
+- **High-risk alerts as events.** After each optimization run, platform-api publishes to the SNS topic `supplychain-ai-risk-alerts`: one JSON event per HIGH-risk item (`event_type=risk.high`), which lands in the SQS queue `supplychain-ai-risk-alerts` (`terraform output risk_alerts_queue_url`), and one readable summary (`risk.high.summary`) that is emailed to `alert_email`. Confirm the SNS subscription emails once. Locally, without `RISK_ALERTS_TOPIC_ARN`, the alerts are only logged.
+
+```bash
+aws sqs receive-message --queue-url "$(terraform -chdir=infra/aws/terraform output -raw risk_alerts_queue_url)" \
+  --max-number-of-messages 1 --visibility-timeout 0 --query 'Messages[0].Body' --output text
+```
+
 ## Update after a code change
 
 ```bash
