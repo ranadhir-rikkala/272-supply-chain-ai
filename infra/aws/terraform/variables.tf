@@ -40,6 +40,13 @@ variable "alert_email" {
   default     = ""
 }
 
+variable "grafana_admin_password" {
+  description = "Fixed Grafana admin password. Leave empty to generate a random one. Grafana is public at /grafana/, so a weak value lets anyone sign in."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "monthly_budget_usd" {
   description = "Monthly cost that triggers budget alerts (at 50, 80 and 100 percent)."
   type        = number
