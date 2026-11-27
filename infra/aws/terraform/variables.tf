@@ -23,9 +23,9 @@ variable "services_enabled" {
 }
 
 variable "db_instance_class" {
-  description = "RDS instance size."
+  description = "RDS instance size. AWS Free plan accounts only allow micro sizes; use db.t4g.medium or larger on a paid plan."
   type        = string
-  default     = "db.t4g.medium"
+  default     = "db.t4g.micro"
 }
 
 variable "alert_email" {
