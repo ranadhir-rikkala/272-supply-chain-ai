@@ -129,3 +129,7 @@ docker run --rm \
 ```
 
 If Testcontainers cannot reach Docker, the integration tests can use an empty disposable PostgreSQL database by setting `PLATFORM_TEST_DATABASE_URL`, `PLATFORM_TEST_DATABASE_USERNAME` and `PLATFORM_TEST_DATABASE_PASSWORD`; the test suite applies the Flyway migrations to that database.
+
+## AWS deployment
+
+The same containers run on AWS with ECS Fargate, RDS PostgreSQL, S3, Secrets Manager and CloudFront, all defined in Terraform. See [infra/aws/README.md](infra/aws/README.md) for the steps and costs, and [ADR 0007](docs/adr/0007-aws-deployment.md) for the design. The demo walkthrough is in [docs/demo-script.md](docs/demo-script.md).

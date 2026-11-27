@@ -13,3 +13,9 @@ data/
 dashboard/test-results/
 dashboard/playwright-report/
 target/
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.terraform.lock.hcl.bak
