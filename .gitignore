@@ -12,3 +12,4 @@ data/
 !.env.example
 dashboard/test-results/
 dashboard/playwright-report/
+target/
