@@ -35,6 +35,12 @@ done
 [[ "$code" == "401" ]] || { echo "API is not answering (last status $code)" >&2; exit 1; }
 echo "    API is up (401 without a token, as expected)"
 
+# Keycloak's bootstrap sets the demo passwords and client secret a few minutes after start.
+for _ in $(seq 1 30); do
+  DEMO_USERNAME=ada.admin bash scripts/token.sh >/dev/null 2>&1 && break
+  sleep 10
+done
+
 echo "==> Signing in as each demo user"
 for user in vic.viewer pat.planner max.manager ada.admin; do
   api "$user" GET /me | python3 -c 'import json,sys; d=json.load(sys.stdin); print("   ", d["username"], d["roles"])'
