@@ -1,0 +1,59 @@
+# AWS version of Caddyfile. CloudFront terminates HTTPS and the load balancer
+# forwards plain HTTP on port 80, so Caddy does not manage certificates here. It
+# tells the upstreams the public scheme and host, which they use for redirects.
+{
+	admin off
+	auto_https off
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
+# The load balancer adds X-Forwarded-Port: 80. Without the override the API sees
+# https://host:80, which doesn't match the browser's Origin, and rejects POSTs as CORS.
+(public_origin) {
+	header_up X-Forwarded-Proto https
+	header_up X-Forwarded-Host {$PUBLIC_HOST}
+	header_up X-Forwarded-Port 443
+}
+
+:80 {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+		-Server
+	}
+
+	@api path /api/* /swagger-ui.html /swagger-ui/* /v3/api-docs*
+	handle @api {
+		reverse_proxy platform-api:8080 {
+			import public_origin
+		}
+	}
+
+	handle /auth/* {
+		reverse_proxy keycloak:8080 {
+			import public_origin
+		}
+	}
+
+	handle /grafana* {
+		reverse_proxy grafana:3000 {
+			import public_origin
+		}
+	}
+
+	handle {
+		header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+		root * /srv/dashboard
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		try_files {path} /index.html
+		file_server
+	}
+}

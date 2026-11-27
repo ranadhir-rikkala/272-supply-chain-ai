@@ -6,6 +6,6 @@ COPY . .
 RUN npm run build
 
 FROM caddy:2.11.9-alpine
-COPY Caddyfile /etc/caddy/Caddyfile
+COPY Caddyfile Caddyfile.aws /etc/caddy/
 COPY --from=build /app/dist /srv/dashboard
 EXPOSE 80 443

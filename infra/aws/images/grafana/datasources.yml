@@ -1,0 +1,29 @@
+# AWS version of monitoring/grafana/provisioning/datasources/datasources.yml.
+# Same uids, so the dashboard JSON works unchanged. RDS requires TLS.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 15s
+
+  - name: Supply chain Postgres
+    uid: postgres
+    type: grafana-postgresql-datasource
+    access: proxy
+    url: ${POSTGRES_HOST}:5432
+    user: grafana_reader
+    editable: false
+    jsonData:
+      database: ${POSTGRES_DB}
+      sslmode: require
+      postgresVersion: 1600
+      maxOpenConns: 4
+    secureJsonData:
+      password: ${GRAFANA_DB_PASSWORD}

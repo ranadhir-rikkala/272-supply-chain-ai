@@ -1,0 +1,8 @@
+# Copy to terraform.tfvars (git-ignored) and adjust.
+region             = "us-east-2"
+alert_email        = "" # your email for budget alerts
+monthly_budget_usd = 50
+services_enabled   = false # deploy.sh flips this after the database is migrated
+
+# The AWS account that holds the stack; Terraform refuses to run against any other.
+# allowed_account_ids = ["123456789012"]
