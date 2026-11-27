@@ -9,9 +9,12 @@
 	}
 }
 
+# The load balancer adds X-Forwarded-Port: 80. Without the override the API sees
+# https://host:80, which doesn't match the browser's Origin, and rejects POSTs as CORS.
 (public_origin) {
 	header_up X-Forwarded-Proto https
 	header_up X-Forwarded-Host {$PUBLIC_HOST}
+	header_up X-Forwarded-Port 443
 }
 
 :80 {
