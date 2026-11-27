@@ -48,3 +48,7 @@ output "store_bucket" {
 output "database_endpoint" {
   value = aws_db_instance.main.address
 }
+output "cloudwatch_dashboard_url" {
+  description = "CloudWatch dashboard for the AWS side of the stack."
+  value       = "https://${var.region}.console.aws.amazon.com/cloudwatch/home?region=${var.region}#dashboards/dashboard/${aws_cloudwatch_dashboard.main.dashboard_name}"
+}
